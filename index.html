@@ -289,6 +289,16 @@
   .card.is-log-past .name{text-decoration:none}
   .logmark{width:26px;height:26px;flex:none;display:flex;align-items:center;justify-content:center;font-size:16px;margin-top:1px}
   .dot.logdot{width:7px;height:7px;box-shadow:0 0 0 1.5px #FFF}
+  .dot.msdot{width:7px;height:7px;background:#7C3AED;border-radius:2px;transform:rotate(45deg)}
+  .ms-marker{display:flex;align-items:center;gap:8px;padding:9px 12px;margin-bottom:8px;background:#F5F3FF;border:1px solid #E9E5FF;border-left:3px solid #7C3AED;border-radius:10px;cursor:pointer}
+  .ms-marker-ico{font-size:15px}
+  .ms-marker-txt{font-size:13px;color:#4C1D95;line-height:1.4}
+  .act-badge{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px;background:#EF4444;color:#fff;font-size:10px;line-height:16px;border-radius:999px;text-align:center;font-weight:700}
+  .act-list{display:flex;flex-direction:column;gap:8px}
+  .act-item{display:flex;gap:10px;align-items:flex-start;padding:10px;background:#fff;border:1px solid var(--line);border-radius:10px}
+  .act-ico{font-size:16px}
+  .act-txt{font-size:14px;line-height:1.4}
+  .act-time{font-size:12px;color:var(--faint);margin-top:2px}
   .cell.sel .dot.logdot{box-shadow:0 0 0 1.5px rgba(255,255,255,.85)}
   .check.on{background:var(--done);border-color:var(--done)}
   .filters input[type=date]{flex:none;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)}
@@ -317,6 +327,7 @@
       <div class="who" id="barWho"></div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
+      <button class="logout" id="activityBtn" style="position:relative">🔔<span id="activityBadge" class="act-badge" style="display:none"></span></button>
       <button class="logout" id="calBtn">📂 行事曆</button>
       <button class="logout" id="logoutBtn">登出</button>
     </div>
@@ -398,6 +409,10 @@
         <button class="add-btn" id="addGoalBtn">＋ 新增目標</button>
       </div>
       <p class="shop-hint" id="goalYearEnd"></p>
+      <div style="display:flex;align-items:center;gap:8px;margin:0 0 10px">
+        <label style="font-size:13px;color:var(--muted)">年度</label>
+        <select id="goalYearFilter" style="flex:none;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff"></select>
+      </div>
       <div id="goalList"></div>
     </section>
   </main>
@@ -791,6 +806,7 @@ $("logoutBtn").addEventListener("click", ()=>{
   if(state.recordsBound){ db.ref("records").off(); state.recordsBound=false; }
   if(state.peopleBound){ db.ref("people").off(); state.peopleBound=false; }
   state.user=null; state.records={}; state.people={}; state.goals={}; state.isAdmin=false;
+  state.activity=[];
   localStorage.removeItem(AUTH_KEY);
   localStorage.removeItem("cal_admin_on");
   $("app").classList.add("hidden");
@@ -809,9 +825,69 @@ function bindData(){
     if(!state.recordsBound){ db.ref("records").on("value", s=>{ state.records=s.val()||{}; renderAll(); }); state.recordsBound=true; }
     if(!state.peopleBound){ db.ref("people").on("value", s=>{ state.people=s.val()||{}; renderAll(); }); state.peopleBound=true; }
     if(!state.goalsBound){ db.ref("goals").on("value", s=>{ state.goals=s.val()||{}; renderGoals(); }); state.goalsBound=true; }
+    bindActivity();
   });
 }
 function renderAll(){ processRecurrences(); refreshOverviewFilterOptions(); renderCalendar(); renderDayEvents(); renderPocket(); renderOverview(); renderShop(); renderGoals(); }
+
+/* ===== ⑤ App 內通知（動態）===== */
+function deviceName(){ try{ return localStorage.getItem("cal_devname")||""; }catch(e){ return ""; } }
+function setDeviceNamePrompt(){
+  const v=prompt("設定你的暱稱（讓家人知道是誰新增的）", deviceName());
+  if(v===null) return;
+  try{ localStorage.setItem("cal_devname",(v||"").trim()); }catch(e){}
+  renderActivityBadge(); toast("已設定暱稱");
+}
+function activityLastSeen(){ try{ return Number(localStorage.getItem("cal_actseen")||0); }catch(e){ return 0; } }
+function setActivityLastSeen(ts){ try{ localStorage.setItem("cal_actseen", String(ts||0)); }catch(e){} }
+function pushActivity(title, kind){
+  if(LOCAL_MODE) return;                       // 本機模式無共享對象
+  try{ db.ref("activity").push({ title:(title||"").slice(0,60), kind:kind||"", actor:deviceName()||"有人", ts:Date.now() }); }catch(e){}
+}
+function bindActivity(){
+  if(LOCAL_MODE || state.activityBound) return;
+  try{
+    db.ref("activity").limitToLast(40).on("value", s=>{
+      const v=s.val()||{};
+      state.activity=Object.entries(v).map(([k,a])=>Object.assign({key:k},a)).sort((x,y)=>(y.ts||0)-(x.ts||0));
+      renderActivityBadge();
+    });
+    state.activityBound=true;
+  }catch(e){}
+}
+function renderActivityBadge(){
+  const b=$("activityBadge"); if(!b) return;
+  const me=deviceName(), seen=activityLastSeen();
+  const n=(state.activity||[]).filter(a=>(a.ts||0)>seen && a.actor!==me).length;
+  if(n>0){ b.textContent=n>99?"99+":String(n); b.style.display=""; } else { b.style.display="none"; }
+}
+function actTimeText(ts){
+  if(!ts) return "";
+  const diff=Math.floor((Date.now()-ts)/60000);
+  if(diff<1) return "剛剛";
+  if(diff<60) return diff+" 分鐘前";
+  if(diff<1440) return Math.floor(diff/60)+" 小時前";
+  const d=new Date(ts);
+  return (d.getMonth()+1)+"/"+d.getDate()+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+}
+function openActivityPanel(){
+  const me=deviceName(); const list=(state.activity||[]);
+  let html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+    +'<span style="font-size:13px;color:var(--muted)">我的暱稱：<b>'+esc(me||"（未設定）")+'</b></span>'
+    +'<span class="manage-link" id="act_setname">設定暱稱</span></div>';
+  if(LOCAL_MODE){ html+='<div class="empty-state">本機模式沒有家人共享，動態只在雲端模式顯示。</div>'; }
+  else if(list.length===0){ html+='<div class="empty-state">還沒有動態。家人新增記事後會出現在這裡。</div>'; }
+  else {
+    html+='<div class="act-list">'+list.map(a=>{
+      const mine=a.actor===me;
+      return '<div class="act-item"><span class="act-ico">'+(KIND_ICO[a.kind]||"📝")+'</span><div class="act-body"><div class="act-txt"><b>'+esc(a.actor||"有人")+'</b> 新增了：'+esc(a.title)+(mine?' <span style="color:var(--faint)">（你）</span>':'')+'</div><div class="act-time">'+actTimeText(a.ts)+'</div></div></div>';
+    }).join("")+'</div>';
+  }
+  openSheet("🔔 動態", html, null, null, "關閉");
+  const sn=$("act_setname"); if(sn) sn.addEventListener("click", setDeviceNamePrompt);
+  const newest=list.length?(list[0].ts||0):Date.now();
+  setActivityLastSeen(newest); renderActivityBadge();
+}
 
 /* 🎒 行事曆頁的百寶袋清單：無日期、未完成、非採購 */
 function renderPocket(){
@@ -957,6 +1033,15 @@ function renderLegend(){
   const el=$("calLegend"); if(!el) return;
   el.innerHTML = CAT_ORDER.map(c=>'<span><i class="dot" style="background:'+catColor(c)+'"></i>'+CAT_ICON[c]+' '+CAT_LABEL[c]+'</span>').join("");
 }
+function goalMsForDay(dateStr){
+  const out=[];
+  Object.entries(state.goals||{}).forEach(([gid,g])=>{
+    if(g && g.type==="milestone" && Array.isArray(g.milestones)){
+      g.milestones.forEach((m,idx)=>{ if(m && m.date===dateStr) out.push({goalId:gid, msIdx:idx, goalTitle:g.title||"目標", text:m.text||"", done:!!m.done}); });
+    }
+  });
+  return out;
+}
 function dotsForDay(dateStr){
   const cats=[]; let urgent=false, log=false;
   curValues().forEach(r=>{
@@ -966,7 +1051,8 @@ function dotsForDay(dateStr){
       if(r.urgent) urgent=true;
     }
   });
-  return { cats, urgent, log };
+  const ms = goalMsForDay(dateStr).length>0;
+  return { cats, urgent, log, ms };
 }
 function renderCalendar(){
   const y=state.view.getFullYear(), m=state.view.getMonth();
@@ -989,6 +1075,7 @@ function renderCalendar(){
     const catCap = info.log ? 3 : 4;
     let dots=info.cats.slice(0,catCap).map(cat=>'<i class="dot" style="background:'+catColor(cat)+'"></i>').join("");
     if(info.log) dots='<i class="dot logdot" style="background:'+LOG_COLOR+'"></i>'+dots;
+    if(info.ms) dots='<i class="dot msdot"></i>'+dots;
     if(info.urgent) dots='<span class="urg">❗️</span>'+dots;
     c.innerHTML='<span class="num">'+d+'</span><span class="dots">'+dots+'</span>';
     c.addEventListener("click", ()=>{ state.selected=dateStr; renderCalendar(); renderDayEvents(); });
@@ -1007,10 +1094,13 @@ function renderDayEvents(){
   $("dayHeading").textContent = (sel.getMonth()+1)+"/"+sel.getDate()+" 記事";
   const hol=holidayName(state.selected);
   const holBanner = hol ? '<div class="hol-banner">🇹🇼 '+esc(hol)+'</div>' : '';
+  const msDay=goalMsForDay(state.selected);
+  const msHtml=msDay.map(x=>'<div class="ms-marker"><span class="ms-marker-ico">🎯</span><span class="ms-marker-txt"><b>'+esc(x.goalTitle)+'</b>　'+esc(x.text)+(x.done?' ✓':'')+'</span></div>').join("");
 
-  if(list.length===0){ wrap.innerHTML=holBanner+'<div class="empty-state">這天還沒有記事，點「新增記事」加入。</div>'; return; }
+  if(list.length===0 && !msHtml){ wrap.innerHTML=holBanner+'<div class="empty-state">這天還沒有記事，點「新增記事」加入。</div>'; return; }
 
-  wrap.innerHTML=holBanner;
+  wrap.innerHTML=holBanner+msHtml;
+  wrap.querySelectorAll(".ms-marker").forEach(el=>el.addEventListener("click", ()=>switchTab("goals")));
   list.forEach(r=>{
     const k=kindOn(r, state.selected);
     const card=document.createElement("div");
@@ -1112,7 +1202,7 @@ function quickAddPocket(){
     status:"pending", createdAt:Date.now(), cal:state.currentCal };
   if(LOCAL_MODE){ const key=genId(); state.records[key]=data; lsSaveRecords(); inp.value=""; renderAll(); return; }
   const key=db.ref("records").push().key;
-  db.ref("records/"+key).update(data).then(()=>{ inp.value=""; }).catch(e=>{ console.error(e); toast("儲存失敗"); });
+  db.ref("records/"+key).update(data).then(()=>{ inp.value=""; pushActivity(title, "todo"); }).catch(e=>{ console.error(e); toast("儲存失敗"); });
 }
 $("pocketAddBtn").addEventListener("click", quickAddPocket);
 $("pocketInput").addEventListener("keydown", e=>{ if(e.key==="Enter") quickAddPocket(); });
@@ -1630,6 +1720,7 @@ function saveRecord(id, prev){
     try{
       const key=id||db.ref("records").push().key;
       await db.ref("records/"+key).update(data);
+      if(!id) pushActivity(title, kind);
       if(dateStart) state.selected=dateStart;
       closeSheet(); toast(id?"已更新":"已新增");
     }catch(err){ console.error(err); toast("儲存失敗"); }
@@ -1673,26 +1764,46 @@ function deleteRecord(id, title, occDate){
    8.5 年度目標（3c）
    ============================================================ */
 $("addGoalBtn").addEventListener("click", ()=>openGoalForm(null));
+if($("activityBtn")) $("activityBtn").addEventListener("click", openActivityPanel);
+if($("goalYearFilter")) $("goalYearFilter").addEventListener("change", renderGoals);
 
 function daysToYearEnd(year){
   const end=new Date(year,11,31); const today=new Date(); today.setHours(0,0,0,0);
   return Math.max(0, Math.ceil((end-today)/86400000));
 }
 function goalProgress(g){
+  if(g.type==="simple"){
+    const pct=Math.max(0,Math.min(100,Math.round(Number(g.progress)||0)));
+    return { done:0, total:0, pct, simple:true };
+  }
   if(g.type==="milestone"){
     const ms=g.milestones||[]; const done=ms.filter(m=>m.done).length;
     return { done, total:ms.length, pct: ms.length? Math.round(done/ms.length*100):0 };
   }
-  const tgt=Number(g.target)||0, cur=Number(g.current)||0;
-  return { done:cur, total:tgt, pct: tgt>0? Math.min(100, Math.round(cur/tgt*100)):0 };
+  const tgt=Number(g.target)||0, cur=Number(g.current)||0, st=(g.start!=null)?Number(g.start):0;
+  let pct;
+  if(tgt===st) pct = (cur===tgt?100:0);
+  else pct = Math.max(0, Math.min(100, Math.round((cur-st)/(tgt-st)*100)));
+  return { done:cur, total:tgt, pct };
 }
 function renderGoals(){
   const wrap=$("goalList"); if(!wrap) return;
   const yr=new Date().getFullYear();
   const ye=$("goalYearEnd"); if(ye) ye.textContent="距離 "+yr+" 年底還有 "+daysToYearEnd(yr)+" 天";
-  const arr=Object.entries(state.goals||{}).map(([id,g])=>Object.assign({id},g));
+  let arr=Object.entries(state.goals||{}).map(([id,g])=>Object.assign({id},g));
+  // 年度篩選下拉：列出有資料的年份＋今年，預設今年
+  const sel=$("goalYearFilter");
+  let yf=String(yr);
+  if(sel){
+    const prev=sel.value;
+    const years=Array.from(new Set(arr.map(g=>String(g.year||yr)).concat([String(yr)]))).sort((a,b)=>Number(b)-Number(a));
+    sel.innerHTML=years.map(y=>'<option value="'+y+'">'+y+' 年</option>').join("")+'<option value="all">全部</option>';
+    sel.value=(prev && (years.includes(prev)||prev==="all"))?prev:String(yr);
+    yf=sel.value;
+  }
+  if(yf && yf!=="all") arr=arr.filter(g=>String(g.year||yr)===yf);
   arr.sort((a,b)=>((b.year||0)-(a.year||0)) || ((a.createdAt||0)-(b.createdAt||0)));
-  if(arr.length===0){ wrap.innerHTML='<div class="empty-state">還沒有目標，點「＋ 新增目標」開始。</div>'; return; }
+  if(arr.length===0){ wrap.innerHTML='<div class="empty-state">'+((yf&&yf!=="all")?(yf+' 年還沒有目標。'):'還沒有目標，點「＋ 新增目標」開始。')+'</div>'; return; }
   wrap.innerHTML=""; arr.forEach(g=>wrap.appendChild(goalCard(g)));
 }
 function goalCard(g){
@@ -1705,22 +1816,36 @@ function goalCard(g){
   h+='<div class="goal-prog"><div class="goal-bar"><div class="goal-fill" style="width:'+p.pct+'%;background:'+col+'"></div></div><div class="goal-pct">'+p.pct+'%</div></div>';
   if(g.type==="milestone"){
     h+='<div class="goal-sub">完成 '+p.done+' / '+p.total+' 項</div><div class="goal-ms">';
-    (g.milestones||[]).forEach((m,i)=>{ h+='<label class="ms-row"><input type="checkbox" data-ms="'+i+'"'+(m.done?" checked":"")+'><span'+(m.done?' class="ms-done"':'')+'>'+esc(m.text)+'</span></label>'; });
+    const msList=(g.milestones||[]).map((m,i)=>({m,i}));
+    msList.sort((a,b)=>{ const da=a.m.date||"9999-99", db_=b.m.date||"9999-99"; return da<db_?-1:da>db_?1:a.i-b.i; });
+    msList.forEach(({m,i})=>{ h+='<label class="ms-row"><input type="checkbox" data-ms="'+i+'"'+(m.done?" checked":"")+'><span'+(m.done?' class="ms-done"':'')+'>'+esc(m.text)+(m.date?' <span style="color:var(--faint);font-size:12px">📅 '+esc(m.date.slice(5))+'</span>':'')+'</span></label>'; });
     h+='</div>';
+  } else if(g.type==="simple"){
+    h+='<div class="goal-sub">'+(p.pct>=100?"已完成 🎉":"進行中")+'</div>';
   } else {
     h+='<div class="goal-sub">'+esc(p.done)+' / '+esc(p.total)+' '+esc(g.unit||"")+'</div>';
   }
   h+='</div><div class="acts">';
-  if(g.type==="number") h+='<button class="icon-btn" data-prog>＋進度</button>';
+  if(g.type==="number"||g.type==="simple") h+='<button class="icon-btn" data-prog>＋進度</button>';
+  h+='<button class="icon-btn" data-next title="複製到明年">→明年</button>';
   h+='<button class="icon-btn" data-edit>✏️</button><button class="icon-btn" data-del>🗑</button></div>';
   card.innerHTML=h;
   card.querySelector("[data-edit]").addEventListener("click", ()=>openGoalForm(g));
   card.querySelector("[data-del]").addEventListener("click", ()=>deleteGoal(g.id, g.title));
+  const nb=card.querySelector("[data-next]"); if(nb) nb.addEventListener("click", ()=>copyGoalToNextYear(g));
   const pb=card.querySelector("[data-prog]"); if(pb) pb.addEventListener("click", ()=>updateGoalProgress(g));
   card.querySelectorAll("[data-ms]").forEach(cb=>cb.addEventListener("change", function(){ toggleMilestone(g.id, Number(this.getAttribute("data-ms"))); }));
   return card;
 }
 function updateGoalProgress(g){
+  if(g.type==="simple"){
+    const cur=prompt("更新「"+g.title+"」進度 %（0-100）", g.progress!=null?g.progress:0);
+    if(cur===null) return;
+    let v=Math.round(Number(cur)); if(isNaN(v)){ toast("請輸入 0-100 的數字"); return; }
+    v=Math.max(0,Math.min(100,v));
+    saveGoalPatch(g.id, { progress:v });
+    return;
+  }
   const cur=prompt("更新「"+g.title+"」目前進度"+(g.unit?("（"+g.unit+"）"):""), g.current!=null?g.current:0);
   if(cur===null) return;
   const v=Number(cur); if(isNaN(v)){ toast("請輸入數字"); return; }
@@ -1729,13 +1854,26 @@ function updateGoalProgress(g){
 function toggleMilestone(id, idx){
   const g=state.goals[id]; if(!g) return;
   const ms=(g.milestones||[]).slice(); if(!ms[idx]) return;
-  ms[idx]={ text:ms[idx].text, done:!ms[idx].done };
+  ms[idx]={ text:ms[idx].text, done:!ms[idx].done, date:ms[idx].date||null };
   saveGoalPatch(id, { milestones:ms });
 }
 function saveGoalPatch(id, patch){
   if(!requireAuth()) return;
   if(LOCAL_MODE){ Object.assign(state.goals[id], patch); lsSaveGoals(); renderGoals(); return; }
   db.ref("goals/"+id).update(patch).catch(e=>{ console.error(e); toast("更新失敗"); });
+}
+function copyGoalToNextYear(g){
+  if(!requireAuth()) return;
+  const ny=(Number(g.year)||new Date().getFullYear())+1;
+  const copy=Object.assign({}, g); delete copy.id;
+  copy.year=ny; copy.createdAt=Date.now();
+  if(copy.type==="milestone" && Array.isArray(copy.milestones)) copy.milestones=copy.milestones.map(m=>({text:m.text,done:false,date:m.date||null}));
+  if(copy.type==="number") copy.current=(copy.start!=null?copy.start:0);
+  if(copy.type==="simple") copy.progress=0;
+  const after=function(){ const sel=$("goalYearFilter"); if(sel){ sel.value=String(ny); } renderGoals(); toast("已複製到 "+ny+" 年"); };
+  if(LOCAL_MODE){ const key=genId(); state.goals[key]=copy; lsSaveGoals(); after(); return; }
+  const key=db.ref("goals").push().key;
+  db.ref("goals/"+key).update(copy).then(after).catch(e=>{ console.error(e); toast("複製失敗"); });
 }
 function deleteGoal(id, title){
   if(!requireAuth()) return;
@@ -1748,7 +1886,7 @@ let goalMilestones=[];   // 編輯時暫存里程碑
 function openGoalForm(goal){
   const isEdit=!!goal; const g=goal||{};
   const type=g.type||"number"; const cat=g.category||"life"; const yr=g.year||new Date().getFullYear();
-  goalMilestones=(g.milestones||[]).map(m=>({text:m.text,done:!!m.done}));
+  goalMilestones=(g.milestones||[]).map(m=>({text:m.text,done:!!m.done,date:m.date||""}));
   const html=
     '<div class="field"><label>目標名稱</label><input id="g_title" autocomplete="off" value="'+esc(g.title||"")+'" placeholder="例如：存到 30 萬"></div>'+
     '<div class="two">'+
@@ -1756,6 +1894,7 @@ function openGoalForm(goal){
       '<div class="field"><label>類型</label><select id="g_type">'+
         '<option value="number"'+(type==="number"?" selected":"")+'>數值型（進度條）</option>'+
         '<option value="milestone"'+(type==="milestone"?" selected":"")+'>里程碑型（清單）</option>'+
+        '<option value="simple"'+(type==="simple"?" selected":"")+'>簡單型（自訂進度，免數字）</option>'+
       '</select></div>'+
     '</div>'+
     '<div class="field"><label>分類</label>'+iconPicker("g_category", CAT_ORDER, CAT_LABEL, CAT_ICON, cat)+'</div>'+
@@ -1764,6 +1903,7 @@ function openGoalForm(goal){
         '<div class="field"><label>目標值</label><input id="g_target" type="number" value="'+(g.target!=null?g.target:"")+'" placeholder="300000"></div>'+
         '<div class="field"><label>目前</label><input id="g_current" type="number" value="'+(g.current!=null?g.current:0)+'"></div>'+
       '</div>'+
+      '<div class="field"><label>起始值（選填）</label><input id="g_start" type="number" value="'+(g.start!=null?g.start:"")+'" placeholder="留空＝自動（增加型從0、減重型從現況）"></div>'+
       '<div class="field"><label>單位（選填）</label><input id="g_unit" autocomplete="off" value="'+esc(g.unit||"")+'" placeholder="元 / 本 / 次"></div>'+
     '</div>'+
     '<div id="g_msbox"'+(type==="milestone"?"":' style="display:none"')+'>'+
@@ -1779,14 +1919,15 @@ function openGoalForm(goal){
     $("g_numbox").style.display=this.value==="number"?"":"none";
     $("g_msbox").style.display=this.value==="milestone"?"":"none";
   });
-  $("g_addms").addEventListener("click", function(){ goalMilestones.push({text:"",done:false}); renderMsEditor(); });
+  $("g_addms").addEventListener("click", function(){ goalMilestones.push({text:"",done:false,date:""}); renderMsEditor(); });
   renderMsEditor();
 }
 function renderMsEditor(){
   const box=$("g_mslist"); if(!box) return;
-  box.innerHTML=goalMilestones.map((m,i)=>'<div class="ms-edit"><input data-mi="'+i+'" autocomplete="off" value="'+esc(m.text)+'" placeholder="里程碑 '+(i+1)+'"><button type="button" class="ms-del" data-md="'+i+'">✕</button></div>').join("")
-    || '<div style="font-size:12px;color:var(--faint);padding:4px 2px">點上方「＋ 加一項」新增里程碑</div>';
+  box.innerHTML=goalMilestones.map((m,i)=>'<div class="ms-edit"><input data-mi="'+i+'" autocomplete="off" value="'+esc(m.text)+'" placeholder="里程碑 '+(i+1)+'"><input type="date" data-mdate="'+i+'" value="'+(m.date||"")+'" style="flex:none;width:140px;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:13px"><button type="button" class="ms-del" data-md="'+i+'">✕</button></div>').join("")
+    || '<div style="font-size:12px;color:var(--faint);padding:4px 2px">點上方「＋ 加一項」新增里程碑（日期選填，填了會出現在行事曆）</div>';
   box.querySelectorAll("[data-mi]").forEach(inp=>inp.addEventListener("input", function(){ goalMilestones[Number(this.getAttribute("data-mi"))].text=this.value; }));
+  box.querySelectorAll("[data-mdate]").forEach(inp=>inp.addEventListener("change", function(){ goalMilestones[Number(this.getAttribute("data-mdate"))].date=this.value; }));
   box.querySelectorAll("[data-md]").forEach(b=>b.addEventListener("click", function(){ goalMilestones.splice(Number(this.getAttribute("data-md")),1); renderMsEditor(); }));
 }
 function saveGoal(id, prev){
@@ -1802,16 +1943,24 @@ function saveGoal(id, prev){
   if(type==="number"){
     data.target=Number($("g_target").value)||0;
     data.current=Number($("g_current").value)||0;
+    const sv=$("g_start").value;
+    if(sv!=="") data.start=Number(sv)||0;
+    else if(!id) data.start=(data.target<data.current)?data.current:0;   // 新目標：減重(目標<現況)起始＝現況；其餘＝0
+    else if(prev && prev.start!=null) data.start=Number(prev.start)||0;  // 編輯：保留原起始
+    else data.start=0;                                                    // 編輯舊資料：維持 0（=現況/目標）
     data.unit=$("g_unit").value.trim();
-    data.milestones=null;
-  } else {
-    data.milestones=goalMilestones.filter(m=>(m.text||"").trim()).map(m=>({text:m.text.trim(),done:!!m.done}));
-    data.target=null; data.current=null; data.unit=null;
+    data.milestones=null; data.progress=null;
+  } else if(type==="milestone"){
+    data.milestones=goalMilestones.filter(m=>(m.text||"").trim()).map(m=>({text:m.text.trim(),done:!!m.done,date:m.date||null}));
+    data.target=null; data.current=null; data.unit=null; data.progress=null; data.start=null;
+  } else {   // simple（自訂進度）
+    data.progress=(prev&&prev.progress!=null)?prev.progress:0;
+    data.target=null; data.current=null; data.unit=null; data.milestones=null; data.start=null;
   }
   if(LOCAL_MODE){
     const key=id||genId();
     const merged=Object.assign({}, state.goals[key]||{}, data);
-    ["target","current","unit","milestones"].forEach(k=>{ if(data[k]===null) delete merged[k]; });
+    ["target","current","unit","milestones","progress","start"].forEach(k=>{ if(data[k]===null) delete merged[k]; });
     state.goals[key]=merged; lsSaveGoals(); closeSheet(); renderGoals(); toast(id?"已更新":"已新增"); return;
   }
   const key=id||db.ref("goals").push().key;
