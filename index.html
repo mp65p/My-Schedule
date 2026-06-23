@@ -356,7 +356,7 @@
     </div>
     <div style="display:flex;gap:7px;align-items:center">
       <button class="logout" id="activityBtn" style="position:relative">🔔<span id="activityBadge" class="act-badge" style="display:none"></span></button>
-      <button class="logout" id="fridgeBtn" title="開啟冰箱管理 App">🧊</button>
+      
       <button class="logout" id="myAppsBtn" title="我的 App">📱</button>
       <button class="logout" id="calBtn" title="切換／管理行事曆">📂</button>
       <button class="logout" id="logoutBtn">登出</button>
@@ -1042,14 +1042,6 @@ function openMyApps(){
   ).join("")+'</div>';
   openSheet("📱 我的 App", html, null, null, "關閉");
 }
-if($("fridgeBtn")) $("fridgeBtn").addEventListener("click", openFridgeApp);
-function openFridgeApp(){
-  const store="https://play.google.com/store/apps/details?id=com.meolly.fridge";
-  const intent="intent://#Intent;package=com.meolly.fridge;S.browser_fallback_url="+encodeURIComponent(store)+";end";
-  try{ window.location.href=intent; }
-  catch(e){ window.open(store,"_blank"); }
-}
-
 function ensureDefaultCalendar(){
   if(!state.calendars || Object.keys(state.calendars).length===0){
     state.calendars={ main:{ name:"我的行事曆", createdAt:Date.now() } };
@@ -1581,7 +1573,16 @@ function toggleDoneWhole(id){
     // 完成 → 記下完成日（今天），排定日保持不變
     patch.kind="done"; patch.status="done";
     patch.doneDate=ymd(new Date());
-    if(r.category==="shopping" && r.invId && r.needStock!==false){ pushInvDone(r.invId, r.qty); }   // 需入庫才回寫
+    if(r.category==="shopping"){
+      if(r.invId && r.needStock!==false){
+        pushInvDone(r.invId, r.qty);
+        toast("📦 已回傳庫存："+(r.title||"商品")+" ×"+Math.max(1,Number(r.qty)||1)+"（請開庫存App確認）");
+      } else if(!r.invId){
+        toast("ℹ️ 手動項目、未連庫存 → 不回傳");
+      } else {
+        toast("ℹ️ 需入庫已關 → 不回傳");
+      }
+    }
     // 採購重複 → 以完成日往後推，生成下一筆（只生一次）
     if(hasRepeat(r) && r.category==="shopping" && !r.spawned){
       patch.spawned=true;
