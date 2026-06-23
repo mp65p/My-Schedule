@@ -254,6 +254,12 @@
   .pocket-add button:active{background:var(--primary-d)}
 
   /* 分類圖示點選器 */
+  .prodresults{margin-top:6px;border:1.5px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)}
+  .prod-row{padding:11px 13px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .prod-row:last-child{border-bottom:none}
+  .prod-row:active{background:var(--bg)}
+  .prod-u{color:var(--muted);font-size:13px}
+  .prod-manual{color:var(--primary);font-weight:600}
   .iconpick{display:flex;flex-wrap:wrap;gap:7px}
   .iconchip{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
     width:62px;padding:8px 4px;border-radius:12px;background:var(--bg);border:1.5px solid transparent;
@@ -514,7 +520,10 @@ const CAT_ORDER = ["life","work","health","travel","study","shopping","finance",
 const CAT_LABEL = { life:"生活", work:"工作", health:"健康", travel:"旅遊", study:"學習", shopping:"購物", finance:"財務", activity:"活動", side:"副業", other:"其他" };
 const CAT_COLOR = { life:"#2CA02C", work:"#1F77B4", health:"#D62728", travel:"#17BECF", study:"#9467BD", shopping:"#E377C2", finance:"#BCBD22", activity:"#FF7F0E", side:"#8C564B", other:"#7F7F7F" };
 const SUBCAT_ORDER = ["food","daily","clothing","travelgear","electronics","other"];
-const SUBCAT_LABEL = { food:"食材", daily:"生活用品", clothing:"衣物", travelgear:"旅遊備品", electronics:"3C/電器", other:"其他" };
+const SUBCAT_LABEL = { food:"食材", daily:"生活用品", clothing:"衣物", travelgear:"旅遊備品", electronics:"3C家電", other:"其他" };
+// 庫存 16 小類 → 行事曆 6 大類（衣物／旅遊備品庫存沒有，只能手動）
+const INV_CAT_TO_SUBCAT = { fruit:"food",veg:"food",meat:"food",frozen:"food",grain:"food",sauce:"food",canned:"food",drink:"food",snack:"food", personal:"daily",home:"daily",daily:"daily",medical:"daily",repair:"daily", elec:"electronics", other:"other" };
+function invSubcatOf(cat){ return INV_CAT_TO_SUBCAT[cat] || "other"; }
 const CAT_ICON = { life:"🏠", work:"💼", health:"🩺", travel:"✈️", study:"📚", shopping:"🛒", finance:"💰", activity:"🎉", side:"💡", other:"📦" };
 const SUBCAT_ICON = { food:"🥦", daily:"🧴", clothing:"👕", travelgear:"🧳", electronics:"🔌", other:"📦" };
 function catIcon(c){ return CAT_ICON[c] || "📦"; }
@@ -836,16 +845,56 @@ $("logoutBtn").addEventListener("click", ()=>{
    4. 資料綁定
    ============================================================ */
 function bindData(){
-  if(LOCAL_MODE){ localMigrateIfNeeded(); lsLoad(); ensureDefaultCalendar(); renderCalBar(); renderAll(); return; }
+  if(LOCAL_MODE){ localMigrateIfNeeded(); lsLoad(); ensureDefaultCalendar(); renderCalBar(); renderAll(); importPendingPurchase(); return; }
   fbMigrateIfNeeded().then(()=>{
     if(!state.calendarsBound){ db.ref("calendars").on("value", s=>{ state.calendars=s.val()||{}; ensureDefaultCalendar(); renderCalBar(); renderAll(); }); state.calendarsBound=true; }
     if(!state.recordsBound){ db.ref("records").on("value", s=>{ state.records=s.val()||{}; renderAll(); }); state.recordsBound=true; }
     if(!state.peopleBound){ db.ref("people").on("value", s=>{ state.people=s.val()||{}; renderAll(); }); state.peopleBound=true; }
     if(!state.goalsBound){ db.ref("goals").on("value", s=>{ state.goals=s.val()||{}; renderGoals(); }); state.goalsBound=true; }
     bindActivity();
+    setTimeout(importPendingPurchase, 800);
   });
 }
 function renderAll(){ processRecurrences(); refreshOverviewFilterOptions(); renderCalendar(); renderDayEvents(); renderPocket(); renderOverview(); renderShop(); renderGoals(); }
+
+/* ===== 庫存 App 整合（兩個 App 同源 mp65p.github.io，共用 localStorage） ===== */
+function importPendingPurchase(){
+  let raw; try{ raw=localStorage.getItem("inv_pending_purchase"); }catch(e){ return; }
+  if(!raw) return;
+  localStorage.removeItem("inv_pending_purchase");
+  let p; try{ p=JSON.parse(raw); }catch(e){ return; }
+  if(!p || !p.item_name) return;
+  const sub=(p.subcategory && SUBCAT_LABEL[p.subcategory])?p.subcategory:"food";
+  const qty=Math.max(1,Number(p.quantity)||1);
+  writeRecord({
+    category:"shopping", title:String(p.item_name).slice(0,60),
+    subcategory:sub, qty:qty, unit:p.unit||"", invId:p.item_id||"", amount:null,
+    needStock:true, fromInv:true,
+    dateStart:"", status:"pending", createdAt:Date.now(), cal:state.currentCal||"main"
+  });
+  toast("已從庫存帶入："+String(p.item_name)+" ×"+qty);
+  if(typeof switchTab==="function") switchTab("shop");
+}
+function pushInvDone(itemId, qty){
+  if(!itemId) return;
+  try{
+    let q; try{ q=JSON.parse(localStorage.getItem("inv_done_callbacks")||"[]"); }catch(e){ q=[]; }
+    if(!Array.isArray(q)) q=[];
+    q.push({ item_id:itemId, qty_added:Math.max(1,Number(qty)||1), done_date:ymd(new Date()) });
+    localStorage.setItem("inv_done_callbacks", JSON.stringify(q));
+  }catch(e){}
+}
+function invAllItems(){
+  let items; try{ items=JSON.parse(localStorage.getItem("inv_v7")||localStorage.getItem("inv_v6")||"[]"); }catch(e){ items=[]; }
+  if(!Array.isArray(items)) items=[];
+  return items.filter(it=>it&&it.name&&!it.is3c);
+}
+function setIconPicker(inputId, val){
+  const pick=$(inputId+"_pick"), inp=$(inputId);
+  if(!pick||!inp) return;
+  inp.value=val;
+  pick.querySelectorAll(".iconchip").forEach(x=>x.classList.toggle("on", x.getAttribute("data-v")===val));
+}
 
 /* ===== ⑤ App 內通知（動態）===== */
 function deviceName(){ try{ return localStorage.getItem("cal_devname")||""; }catch(e){ return ""; } }
@@ -981,6 +1030,7 @@ $("calBtn").addEventListener("click", openCalManager);
 if($("myAppsBtn")) $("myAppsBtn").addEventListener("click", openMyApps);
 function openMyApps(){
   const apps=[
+    {ico:"📦", name:"庫存管理", url:"https://mp65p.github.io/My-Inventory/"},
     {ico:"✈️", name:"日本旅遊計畫", url:"https://mp65p.github.io/My-Japan-travel/"},
     {ico:"🍽️", name:"食光地圖", url:"https://mp65p.github.io/My-Food-Map/"},
     {ico:"🏠", name:"居家服務 CRM", url:"https://mp65p.github.io/MY-CRM/"}
@@ -1150,6 +1200,7 @@ function goalMsForDay(dateStr){
 function dotsForDay(dateStr){
   const cats=[]; let urgent=false, log=false;
   curValues().forEach(r=>{
+    if(r && isDone(r) && !r.dateStart) return;   // 已完成且無日期 → 不上行事曆（總覽仍可查）
     if(r && (dayInRange(r,dateStr) || occursOn(r,dateStr))){
       if(recKind(r)==="log") log=true;
       else if(cats.indexOf(r.category)<0) cats.push(r.category);
@@ -1191,7 +1242,7 @@ function renderCalendar(){
 function renderDayEvents(){
   const wrap=$("dayEvents");
   const list=curEntries()
-    .filter(([id,r])=>dayInRange(r, state.selected) || occursOn(r, state.selected))
+    .filter(([id,r])=>!(isDone(r) && !r.dateStart) && (dayInRange(r, state.selected) || occursOn(r, state.selected)))
     .map(([id,r])=>Object.assign({id},r))
     .sort((a,b)=>{ const u=(b.urgent?1:0)-(a.urgent?1:0); if(u!==0) return u; return (a.start||"").localeCompare(b.start||""); });
 
@@ -1528,6 +1579,7 @@ function toggleDoneWhole(id){
     // 完成 → 記下完成日（今天），排定日保持不變
     patch.kind="done"; patch.status="done";
     patch.doneDate=ymd(new Date());
+    if(r.category==="shopping" && r.invId && r.needStock!==false){ pushInvDone(r.invId, r.qty); }   // 需入庫才回寫
     // 採購重複 → 以完成日往後推，生成下一筆（只生一次）
     if(hasRepeat(r) && r.category==="shopping" && !r.spawned){
       patch.spawned=true;
@@ -1690,14 +1742,19 @@ function openRecordForm(rec, presets){
   const rep=r.repeat||{}; const repUnit=rep.unit||"none"; const repEvery=rep.every||1;
 
   const html=
-    '<div class="field"><label>標題 <span style="color:var(--faint);font-weight:400">🕐 可選用過的</span></label>'+
+    '<div class="field" id="rec_titlebox"'+(isShop?' style="display:none"':'')+'><label>標題 <span style="color:var(--faint);font-weight:400">🕐 可選用過的</span></label>'+
       '<input id="rec_title" list="rec_title_hist" autocomplete="off" value="'+esc(r.title||"")+'" placeholder="標題">'+
       '<datalist id="rec_title_hist">'+titleHistoryOptions()+'</datalist></div>'+
     '<div class="field" id="rec_catbox"'+(isShop?' style="display:none"':'')+'><label>分類</label>'+
       iconPicker("rec_category", CAT_ORDER, CAT_LABEL, CAT_ICON, cat)+'</div>'+
     '<div id="rec_shopbox"'+(isShop?"":' style="display:none"')+'>'+
-      '<div class="field"><label>購物子分類</label>'+
-        iconPicker("rec_subcategory", SUBCAT_ORDER, SUBCAT_LABEL, SUBCAT_ICON, (r.subcategory||"food"))+'</div>'+
+      '<div class="field"><label>商品（打字搜尋庫存；找不到可手動新增）</label>'+
+        '<input id="rec_prodsearch" type="text" autocomplete="off" placeholder="🔍 搜尋商品…" value="'+esc(r.title||"")+'">'+
+        '<div id="rec_prodresults" class="prodresults" style="display:none"></div></div>'+
+      '<input type="hidden" id="rec_invId" value="'+esc(r.invId||"")+'">'+
+      '<div class="field"><label>大分類'+(r.invId?'（已依商品自動帶入）':'（手動商品才需選）')+'</label>'+
+        '<select id="rec_subcategory">'+SUBCAT_ORDER.map(c=>'<option value="'+c+'"'+(((r.subcategory||"food")===c)?" selected":"")+'>'+SUBCAT_ICON[c]+' '+SUBCAT_LABEL[c]+'</option>').join("")+'</select></div>'+
+      '<div class="toggle-row" id="rec_needstockbox"><span>📦 需入庫管理（完成→更新庫存）</span><label class="switch"><input type="checkbox" id="rec_needstock"'+((r.needStock!==undefined?r.needStock:!!r.invId)?" checked":"")+(r.fromInv?" disabled":"")+'><span class="slider"></span></label></div>'+
       '<div class="two">'+
         '<div class="field"><label>數量</label><input id="rec_qty" type="number" min="1" value="'+(r.qty||1)+'"></div>'+
         '<div class="field"><label>價格（選填）</label><input id="rec_price" type="number" inputmode="numeric" value="'+(isShop&&r.amount!=null?r.amount:"")+'" placeholder="例如 3990"></div>'+
@@ -1737,13 +1794,56 @@ function openRecordForm(rec, presets){
   wireIconPicker("rec_category", function(v){
     const shop=v==="shopping";
     $("rec_shopbox").style.display=shop?"":"none";
+    if($("rec_titlebox")) $("rec_titlebox").style.display=shop?"none":"";
     $("rec_amountbox").style.display=shop?"none":"";
     $("rec_cdbox").style.display=shop?"none":"";
     $("rec_logbox").style.display=shop?"none":"";
     $("rec_endbox").style.display=shop?"none":"";
     $("rec_timebox").style.display=shop?"none":"";
   });
-  wireIconPicker("rec_subcategory");
+  function _lockSubcat(){
+    const sc=$("rec_subcategory"); if(!sc) return;
+    sc.disabled = !!($("rec_invId") && $("rec_invId").value);   // 選到庫存品項→鎖住大分類
+  }
+  function _syncNeedStock(){
+    const ns=$("rec_needstock");
+    if(ns && !ns.disabled) ns.checked = !!($("rec_invId") && $("rec_invId").value);
+    _lockSubcat();
+  }
+  const _ps=$("rec_prodsearch"), _pr=$("rec_prodresults");
+  function _renderProdResults(q){
+    if(!_pr) return;
+    q=(q||"").trim();
+    if(!q){ _pr.style.display="none"; _pr.innerHTML=""; return; }
+    const ql=q.toLowerCase();
+    const hits=invAllItems().filter(it=>it.name.toLowerCase().indexOf(ql)>=0).slice(0,8);
+    let html=hits.map(it=>'<div class="prod-row" data-id="'+esc(String(it.id))+'" data-name="'+esc(it.name)+'" data-cat="'+esc(it.cat||"")+'">'+esc(it.name)+(it.unit?'<span class="prod-u">'+esc(it.unit)+'</span>':'')+'</div>').join("");
+    html+='<div class="prod-row prod-manual" data-manual="1">＋ 手動新增「'+esc(q)+'」（庫存沒有，不回傳）</div>';
+    _pr.innerHTML=html; _pr.style.display="";
+    _pr.querySelectorAll(".prod-row").forEach(row=>row.addEventListener("click", function(){
+      if(this.getAttribute("data-manual")){
+        if($("rec_invId")) $("rec_invId").value="";
+        $("rec_title").value=q; _ps.value=q;
+      } else {
+        const nm=this.getAttribute("data-name")||"", id=this.getAttribute("data-id")||"", c=this.getAttribute("data-cat")||"";
+        $("rec_title").value=nm; _ps.value=nm;
+        if($("rec_invId")) $("rec_invId").value=id;
+        const sc=$("rec_subcategory"); if(sc) sc.value=invSubcatOf(c);   // 自動帶大分類
+      }
+      _syncNeedStock();
+      _pr.style.display="none"; _pr.innerHTML="";
+    }));
+  }
+  if(_ps){
+    _ps.addEventListener("input", function(){
+      $("rec_title").value=this.value;          // 打什麼就是品名
+      if($("rec_invId")) $("rec_invId").value="";  // 重打 → 先解除連結，點到結果才重連
+      _syncNeedStock();
+      _renderProdResults(this.value);
+    });
+    _ps.addEventListener("focus", function(){ if(this.value.trim()) _renderProdResults(this.value); });
+  }
+  _lockSubcat();   // 開表單時：若已連到庫存品項就鎖住大分類
   $("rec_manage").addEventListener("click", openPeopleManager);
   $("rec_addperson").addEventListener("click", async function(){
     const nm=$("rec_newperson").value.trim();
@@ -1797,10 +1897,13 @@ function saveRecord(id, prev){
   if(isShop){
     data.subcategory=$("rec_subcategory").value||"other";
     data.qty=Math.max(1, Number($("rec_qty").value)||1);
+    data.invId = ($("rec_invId") && $("rec_invId").value) ? $("rec_invId").value : ((prev&&prev.invId)||null);
+    data.needStock = $("rec_needstock") ? !!$("rec_needstock").checked : !!(prev&&prev.needStock);
+    data.fromInv = (prev&&prev.fromInv) ? true : null;
     const pv=$("rec_price").value;
     data.amount = (pv!=="" && !isNaN(Number(pv))) ? Number(pv) : null;
   } else {
-    data.subcategory=null; data.qty=null;
+    data.subcategory=null; data.qty=null; data.invId=null; data.needStock=null; data.fromInv=null;
     const av=$("rec_amount").value;
     data.amount = (av!=="" && !isNaN(Number(av))) ? Number(av) : null;
   }
