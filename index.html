@@ -408,9 +408,6 @@
 
     <!-- Overview tab -->
     <section id="tabOverview" class="hidden">
-      <div class="section-head" style="margin-top:4px">
-        <h2>總覽 <span style="font-size:12px;color:var(--faint);font-weight:400">查詢／回顧</span></h2>
-      </div>
       <div class="filters">
         <div class="filter-row">
           <span class="filter-label">期間</span>
@@ -435,7 +432,7 @@
     <!-- Shopping tab -->
     <section id="tabShop" class="hidden">
       <div class="section-head" style="margin-top:4px">
-        <h2>待購清單</h2>
+        <span></span>
         <button class="add-btn" id="addItemBtn">＋ 新增待購</button>
       </div>
       <p class="shop-hint">勾選後自動完成並從清單消失，依購物子分類分組。</p>
@@ -444,7 +441,7 @@
 
     <section id="tabGoals" class="hidden">
       <div class="section-head" style="margin-top:4px">
-        <h2>🎯 年度目標</h2>
+        <span></span>
         <button class="add-btn" id="addGoalBtn">＋ 新增目標</button>
       </div>
       <p class="shop-hint" id="goalYearEnd"></p>
@@ -521,7 +518,7 @@ let formAssignees = new Set();   // 編輯記事時暫存已選執行人
 const CAT_ORDER = ["life","work","health","travel","study","shopping","finance","activity","side","other"];
 const CAT_LABEL = { life:"生活", work:"工作", health:"健康", travel:"旅遊", study:"學習", shopping:"購物", finance:"財務", activity:"活動", side:"副業", other:"其他" };
 const CAT_COLOR = { life:"#2CA02C", work:"#1F77B4", health:"#D62728", travel:"#17BECF", study:"#9467BD", shopping:"#E377C2", finance:"#BCBD22", activity:"#FF7F0E", side:"#8C564B", other:"#7F7F7F" };
-const APP_VER = "v51";
+const APP_VER = "v52";
 const SUBCAT_ORDER = ["food","daily","clothing","travelgear","electronics","other"];
 const SUBCAT_LABEL = { food:"食材", daily:"生活用品", clothing:"衣物", travelgear:"旅遊備品", electronics:"3C家電", other:"其他" };
 // 庫存 16 小類 → 行事曆 6 大類（衣物／旅遊備品庫存沒有，只能手動）
