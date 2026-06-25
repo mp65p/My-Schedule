@@ -518,7 +518,7 @@ let formAssignees = new Set();   // 編輯記事時暫存已選執行人
 const CAT_ORDER = ["life","work","health","travel","study","shopping","finance","activity","side","other"];
 const CAT_LABEL = { life:"生活", work:"工作", health:"健康", travel:"旅遊", study:"學習", shopping:"購物", finance:"財務", activity:"活動", side:"副業", other:"其他" };
 const CAT_COLOR = { life:"#2CA02C", work:"#1F77B4", health:"#D62728", travel:"#17BECF", study:"#9467BD", shopping:"#E377C2", finance:"#BCBD22", activity:"#FF7F0E", side:"#8C564B", other:"#7F7F7F" };
-const APP_VER = "v53";
+const APP_VER = "v55";
 const SUBCAT_ORDER = ["food","daily","clothing","travelgear","electronics","other"];
 const SUBCAT_LABEL = { food:"食材", daily:"生活用品", clothing:"衣物", travelgear:"旅遊備品", electronics:"3C家電", other:"其他" };
 // 庫存 16 小類 → 行事曆 6 大類（衣物／旅遊備品庫存沒有，只能手動）
@@ -1053,7 +1053,7 @@ function openMyApps(){
     {ico:"🏠", name:"居家服務 CRM", url:"https://mp65p.github.io/MY-CRM/"}
   ];
   const html='<div class="app-list">'+apps.map(a=>
-    '<a class="app-row" href="'+a.url+'" target="_blank" rel="noopener"><span class="app-ico">'+a.ico+'</span><span class="app-name">'+esc(a.name)+'</span><span class="app-go">↗</span></a>'
+    '<a class="app-row" href="'+a.url+'" rel="noopener"><span class="app-ico">'+a.ico+'</span><span class="app-name">'+esc(a.name)+'</span><span class="app-go">↗</span></a>'
   ).join("")+'</div>';
   openSheet("📱 我的 App", html, null, null, "關閉");
 }
@@ -1753,11 +1753,11 @@ function savePocket(id, prev){
   })();
 }
 
-function openRecordForm(rec, presets){
+function openRecordForm(rec, presets, asCopy){
   presets=presets||{};
-  const isEdit=!!rec; const r=rec||{};
+  const isEdit=!!rec && !asCopy; const r=rec||{};
   const cat =r.category || presets.category || "life";
-  const ds  =(r.dateStart!==undefined ? r.dateStart : (presets.dateStart!==undefined ? presets.dateStart : state.selected));
+  const ds  = asCopy ? "" : (r.dateStart!==undefined ? r.dateStart : (presets.dateStart!==undefined ? presets.dateStart : state.selected));
   const isShop=cat==="shopping";
   formAssignees=new Set(r.assignees||[]);
   const rep=r.repeat||{}; const repUnit=rep.unit||"none"; const repEvery=rep.every||1;
@@ -1781,7 +1781,13 @@ function openRecordForm(rec, presets){
         '<div class="field"><label>價格（選填）</label><input id="rec_price" type="number" inputmode="numeric" value="'+(isShop&&r.amount!=null?r.amount:"")+'" placeholder="例如 3990"></div>'+
       '</div>'+
     '</div>'+
-    '<div class="field"><label>日期（可空，填了就上月曆）</label><input id="rec_dateStart" type="date" value="'+(ds||"")+'"></div>'+
+    '<div class="field"><label>日期（可空，填了就上月曆）</label><input id="rec_dateStart" type="date" value="'+(ds||"")+'">'+
+      '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">'+
+        '<button type="button" class="btn-ghost" id="rec_dm1" style="padding:5px 11px;font-size:12px">−1天</button>'+
+        '<button type="button" class="btn-ghost" id="rec_dp1" style="padding:5px 11px;font-size:12px">＋1天</button>'+
+        '<button type="button" class="btn-ghost" id="rec_dp7" style="padding:5px 11px;font-size:12px">＋7天</button>'+
+        ((!!rec&&!asCopy)?'<button type="button" class="btn-ghost" id="rec_dup" style="padding:5px 11px;font-size:12px">📋 複製</button>':'')+
+      '</div></div>'+
     '<div class="field" id="rec_endbox"'+(isShop?' style="display:none"':'')+'><label>結束日期（可空）</label><input id="rec_dateEnd" type="date" value="'+(r.dateEnd||"")+'"></div>'+
     '<div class="two" id="rec_timebox"'+(isShop?' style="display:none"':'')+'>'+
       '<div class="field"><label>開始時間</label><input id="rec_start" type="time" value="'+(r.start||"")+'"></div>'+
@@ -1808,8 +1814,16 @@ function openRecordForm(rec, presets){
     '<div class="field"><label>備註（可選）</label><textarea id="rec_note" placeholder="補充說明">'+esc(r.note||"")+'</textarea></div>';
 
   openSheet(isShop?(isEdit?"編輯採購":"新增採購"):(isEdit?"編輯記事":"新增記事"), html,
-    function(){ saveRecord(isEdit?r.id:null, r); },
+    function(){ saveRecord(isEdit?r.id:null, asCopy?null:r); },
     isEdit?function(){ deleteRecord(r.id, r.title); }:null);
+
+  (function(){
+    function _shift(n){ var el=$("rec_dateStart"); if(!el) return; var base=el.value?_ymdToDate(el.value):new Date(); base.setDate(base.getDate()+n); el.value=ymd(base); }
+    if($("rec_dm1")) $("rec_dm1").addEventListener("click", function(){ _shift(-1); });
+    if($("rec_dp1")) $("rec_dp1").addEventListener("click", function(){ _shift(1); });
+    if($("rec_dp7")) $("rec_dp7").addEventListener("click", function(){ _shift(7); });
+    if($("rec_dup")) $("rec_dup").addEventListener("click", function(){ var keep=r; closeSheet(); setTimeout(function(){ openRecordForm(keep, null, true); }, 60); });
+  })();
 
   renderAssigneeChips();
   wireIconPicker("rec_category", function(v){
@@ -1840,9 +1854,11 @@ function openRecordForm(rec, presets){
     q=(q||"").trim();
     if(!q){ _pr.style.display="none"; _pr.innerHTML=""; return; }
     const ql=q.toLowerCase();
-    const hits=invAllItems().filter(it=>it.name.toLowerCase().indexOf(ql)>=0).slice(0,8);
+    const all=invAllItems();
+    const hits=all.filter(it=>String(it.name||"").toLowerCase().indexOf(ql)>=0).slice(0,8);
     let html=hits.map(it=>'<div class="prod-row" data-id="'+esc(String(it.id))+'" data-name="'+esc(it.name)+'" data-cat="'+esc(it.cat||"")+'">'+esc(it.name)+(it.unit?'<span class="prod-u">'+esc(it.unit)+'</span>':'')+'</div>').join("");
     html+='<div class="prod-row prod-manual" data-manual="1">＋ 手動新增「'+esc(q)+'」（庫存沒有，不回傳）</div>';
+    html+='<div style="font-size:11px;color:var(--faint);padding:6px 8px">🔧 行事曆目前讀到庫存 '+all.length+' 項</div>';
     _pr.innerHTML=html; _pr.style.display="";
     _pr.querySelectorAll(".prod-row").forEach(row=>row.addEventListener("click", function(){
       if(this.getAttribute("data-manual")){
@@ -2013,6 +2029,14 @@ function daysToYearEnd(year){
   const end=new Date(year,11,31); const today=new Date(); today.setHours(0,0,0,0);
   return Math.max(0, Math.ceil((end-today)/86400000));
 }
+// ---- 頻率型目標（每週N次，週一為起點）----
+function _ymdToDate(ds){ const p=String(ds).split("-"); return new Date(Number(p[0]),Number(p[1])-1,Number(p[2])); }
+function _weekKey(d){ const dt=new Date(d.getFullYear(),d.getMonth(),d.getDate()); const day=(dt.getDay()+6)%7; dt.setDate(dt.getDate()-day); return dt.getFullYear()+"-"+(dt.getMonth()+1)+"-"+dt.getDate(); }
+function freqWeekCount(g){ const wk=_weekKey(new Date()); return (g.freqLog||[]).filter(ds=>_weekKey(_ymdToDate(ds))===wk).length; }
+function freqMonthCount(g){ const n=new Date(),ym=n.getFullYear()+"-"+(n.getMonth()+1); return (g.freqLog||[]).filter(ds=>{const d=_ymdToDate(ds);return (d.getFullYear()+"-"+(d.getMonth()+1))===ym;}).length; }
+function freqWeekDays(g){ const wk=_weekKey(new Date()); const W=["日","一","二","三","四","五","六"]; return (g.freqLog||[]).filter(ds=>_weekKey(_ymdToDate(ds))===wk).map(ds=>W[_ymdToDate(ds).getDay()]); }
+function bumpFreq(id){ if(!requireAuth())return; const g=state.goals[id]; if(!g)return; const log=(g.freqLog||[]).slice(); log.push(ymd(new Date())); saveGoalPatch(id,{freqLog:log}); toast("✅ 今天完成 +1"); }
+function undoFreq(id){ if(!requireAuth())return; const g=state.goals[id]; if(!g)return; const log=(g.freqLog||[]).slice(); if(!log.length){ toast("尚無紀錄"); return; } log.pop(); saveGoalPatch(id,{freqLog:log}); toast("已退回一次"); }
 function goalProgress(g){
   if(g.type==="simple"){
     return g.done ? { done:0, total:0, pct:100, complete:true } : { done:0, total:0, pct:0, simple:true };
@@ -2021,7 +2045,9 @@ function goalProgress(g){
     const ms=g.milestones||[]; const done=ms.filter(m=>m.done).length;
     return { done, total:ms.length, pct: ms.length? Math.round(done/ms.length*100):0 };
   }
-  const tgt=Number(g.target)||0, cur=Number(g.current)||0, st=(g.start!=null)?Number(g.start):0;
+  const tgt=Number(g.target)||0, cur=Number(g.current)||0;
+  const dir=g.dir||"up";
+  const st = (dir==="down") ? ((g.start!=null)?Number(g.start):cur) : 0;   // 遞增一律從0起算
   let pct;
   if(tgt===st) pct = (cur===tgt?100:0);
   else pct = Math.max(0, Math.min(100, Math.round((cur-st)/(tgt-st)*100)));
@@ -2031,7 +2057,9 @@ function goalProgress(g){
 function goalSegments(g){
   if(g.type!=="number") return [];
   const step=Math.abs(Number(g.step)||0); if(step<=0) return [];
-  const st=(g.start!=null)?Number(g.start):0, tgt=Number(g.target)||0, cur=Number(g.current)||0;
+  const dir=g.dir||"up";
+  const tgt=Number(g.target)||0, cur=Number(g.current)||0;
+  const st = (dir==="down") ? ((g.start!=null)?Number(g.start):cur) : 0;   // 遞增一律從0起算
   if(tgt===st) return [];
   const up = tgt>st;
   const n=Math.floor(Math.abs(tgt-st)/step);
@@ -2073,6 +2101,12 @@ function goalCard(g){
   h+='<div class="meta">'+pillHtml(g.category)+' <span>'+esc(g.year||"")+'</span></div>';
   if(g.type==="simple"){
     h+='<div class="goal-status'+(p.complete?' is-done':'')+'">'+(p.complete?"已完成 🎉":"進行中")+'</div>';
+  } else if(g.type==="freq"){
+    const wc=freqWeekCount(g), pw=g.perWeek||1, mc=freqMonthCount(g);
+    const wpct=Math.min(100,Math.round(wc/pw*100));
+    const days=freqWeekDays(g);
+    h+='<div class="goal-prog"><div class="goal-bar"><div class="goal-fill" style="width:'+wpct+'%;background:'+col+'"></div></div><div class="goal-pct">本週 '+wc+'/'+pw+'</div></div>';
+    h+='<div class="goal-sub">本月共 '+mc+' '+esc(g.unit||"次")+(wc>=pw?'　本週達標 🎉':'')+(days.length?'　（'+days.join("、")+'）':'')+'</div>';
   } else {
     h+='<div class="goal-prog"><div class="goal-bar"><div class="goal-fill" style="width:'+p.pct+'%;background:'+col+'"></div></div><div class="goal-pct">'+p.pct+'%</div></div>';
     if(g.type==="milestone"){
@@ -2089,6 +2123,7 @@ function goalCard(g){
   }
   h+='</div><div class="acts">';
   if(g.type==="number") h+='<button class="icon-btn" data-prog>＋進度</button><button class="icon-btn" data-fin>✓ 標記完成</button>';
+  if(g.type==="freq") h+='<button class="icon-btn" data-bump>＋1 今天完成</button><button class="icon-btn" data-undo>↩︎ 退回</button>';
   if(g.type==="simple") h+='<button class="icon-btn" data-done>'+(g.done?"↩︎ 取消完成":"✓ 標記完成")+'</button>';
   h+='<button class="icon-btn" data-next title="複製到明年">📋 明年繼續</button>';
   h+='<button class="icon-btn" data-edit>✏️</button><button class="icon-btn" data-del>🗑</button></div>';
@@ -2098,6 +2133,8 @@ function goalCard(g){
   const nb=card.querySelector("[data-next]"); if(nb) nb.addEventListener("click", ()=>copyGoalToNextYear(g));
   const pb=card.querySelector("[data-prog]"); if(pb) pb.addEventListener("click", ()=>updateGoalProgress(g));
   const fb=card.querySelector("[data-fin]"); if(fb) fb.addEventListener("click", ()=>markGoalDone(g.id));
+  const bp=card.querySelector("[data-bump]"); if(bp) bp.addEventListener("click", ()=>bumpFreq(g.id));
+  const ub=card.querySelector("[data-undo]"); if(ub) ub.addEventListener("click", ()=>undoFreq(g.id));
   const dn=card.querySelector("[data-done]"); if(dn) dn.addEventListener("click", ()=>toggleGoalDone(g.id));
   card.querySelectorAll("[data-ms]").forEach(cb=>cb.addEventListener("change", function(){ toggleMilestone(g.id, Number(this.getAttribute("data-ms"))); }));
   return card;
@@ -2135,6 +2172,7 @@ function copyGoalToNextYear(g){
   copy.year=ny; copy.createdAt=Date.now(); copy.done=false;
   if(copy.type==="milestone" && Array.isArray(copy.milestones)) copy.milestones=copy.milestones.map(m=>({text:m.text,done:false,date:m.date||null}));
   if(copy.type==="number") copy.current=(copy.start!=null?copy.start:0);
+  if(copy.type==="freq") copy.freqLog=[];   // 頻率型：新年度從零開始
   const after=function(){ const sel=$("goalYearFilter"); if(sel){ sel.value=String(ny); } renderGoals(); toast("已複製到 "+ny+" 年"); };
   if(LOCAL_MODE){ const key=genId(); state.goals[key]=copy; lsSaveGoals(); after(); return; }
   const key=db.ref("goals").push().key;
@@ -2159,6 +2197,7 @@ function openGoalForm(goal){
       '<div class="field"><label>年度</label><input id="g_year" type="number" value="'+yr+'"></div>'+
       '<div class="field"><label>類型</label><select id="g_type">'+
         '<option value="number"'+(type==="number"?" selected":"")+'>數值型（進度條）</option>'+
+        '<option value="freq"'+(type==="freq"?" selected":"")+'>頻率型（每週N次）</option>'+
         '<option value="milestone"'+(type==="milestone"?" selected":"")+'>里程碑型（清單）</option>'+
         '<option value="simple"'+(type==="simple"?" selected":"")+'>簡單型（進行中／已完成）</option>'+
       '</select></div>'+
@@ -2182,6 +2221,13 @@ function openGoalForm(goal){
       '<div class="label-row"><label>里程碑清單</label><span class="manage-link" id="g_addms">＋ 加一項</span></div>'+
       '<div id="g_mslist"></div>'+
     '</div>'+
+    '<div id="g_freqbox"'+(type==="freq"?"":' style="display:none"')+'>'+
+      '<div class="two">'+
+        '<div class="field"><label>每週幾次</label><input id="g_perweek" type="number" min="1" value="'+(g.perWeek!=null?g.perWeek:3)+'"></div>'+
+        '<div class="field"><label>單位（選填）</label><input id="g_funit" autocomplete="off" value="'+esc(g.unit||"次")+'"></div>'+
+      '</div>'+
+      '<div style="font-size:12px;color:var(--faint);padding:2px 2px 0">每完成一次就在目標卡片按「＋1 今天完成」，每週一重新計算。</div>'+
+    '</div>'+
     '<div class="field"><label>備註（可選）</label><textarea id="g_note" placeholder="補充說明">'+esc(g.note||"")+'</textarea></div>';
   openSheet(isEdit?"編輯目標":"新增目標", html,
     function(){ saveGoal(isEdit?g.id:null, g); },
@@ -2190,6 +2236,7 @@ function openGoalForm(goal){
   $("g_type").addEventListener("change", function(){
     $("g_numbox").style.display=this.value==="number"?"":"none";
     $("g_msbox").style.display=this.value==="milestone"?"":"none";
+    $("g_freqbox").style.display=this.value==="freq"?"":"none";
   });
   $("g_addms").addEventListener("click", function(){ goalMilestones.push({text:"",done:false,date:""}); renderMsEditor(); });
   renderMsEditor();
@@ -2218,14 +2265,19 @@ function saveGoal(id, prev){
     data.dir=($("g_dir").value==="down")?"down":"up";
     const stp=$("g_step").value;
     data.step=(stp!=="")?(Math.abs(Number(stp))||null):null;
-    // 起始值自動：同方向編輯保留原值；新建（不分方向）都用目前值當起點
-    if(id && prev && prev.start!=null && (prev.dir||"up")===data.dir) data.start=Number(prev.start)||0;
-    else data.start=data.current;
+    // 起始值：遞增一律從0起算（修正低段位/「1」不顯示與0/1切換異常）；遞減從目前值起算、編輯保留不漂移
+    if(data.dir==="down") data.start=(id && prev && prev.start!=null && (prev.dir||"up")==="down") ? (Number(prev.start)||0) : data.current;
+    else data.start=0;
     data.unit=$("g_unit").value.trim();
     data.milestones=null; data.progress=null; data.done=null;
   } else if(type==="milestone"){
     data.milestones=goalMilestones.filter(m=>(m.text||"").trim()).map(m=>({text:m.text.trim(),done:!!m.done,date:m.date||null}));
     data.target=null; data.current=null; data.unit=null; data.progress=null; data.start=null; data.step=null; data.dir=null; data.done=null;
+  } else if(type==="freq"){
+    data.perWeek=Math.max(1, Number($("g_perweek").value)||1);
+    data.unit=($("g_funit")&&$("g_funit").value.trim())||"次";
+    data.freqLog=(prev&&Array.isArray(prev.freqLog))?prev.freqLog:[];
+    data.target=null; data.current=null; data.milestones=null; data.progress=null; data.start=null; data.step=null; data.dir=null; data.done=null;
   } else {   // simple（進行中／已完成）
     data.done=!!(prev&&prev.done);
     data.target=null; data.current=null; data.unit=null; data.milestones=null; data.progress=null; data.start=null; data.step=null; data.dir=null;
