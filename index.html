@@ -518,7 +518,7 @@ let formAssignees = new Set();   // 編輯記事時暫存已選執行人
 const CAT_ORDER = ["life","work","health","travel","study","shopping","finance","activity","side","other"];
 const CAT_LABEL = { life:"生活", work:"工作", health:"健康", travel:"旅遊", study:"學習", shopping:"購物", finance:"財務", activity:"活動", side:"副業", other:"其他" };
 const CAT_COLOR = { life:"#2CA02C", work:"#1F77B4", health:"#D62728", travel:"#17BECF", study:"#9467BD", shopping:"#E377C2", finance:"#BCBD22", activity:"#FF7F0E", side:"#8C564B", other:"#7F7F7F" };
-const APP_VER = "v55";
+const APP_VER = "v56";
 const SUBCAT_ORDER = ["food","daily","clothing","travelgear","electronics","other"];
 const SUBCAT_LABEL = { food:"食材", daily:"生活用品", clothing:"衣物", travelgear:"旅遊備品", electronics:"3C家電", other:"其他" };
 // 庫存 16 小類 → 行事曆 6 大類（衣物／旅遊備品庫存沒有，只能手動）
@@ -875,12 +875,13 @@ function importPendingPurchase(){
   toast("已從庫存帶入："+String(p.item_name)+" ×"+qty);
   if(typeof switchTab==="function") switchTab("shop");
 }
-function pushInvDone(itemId, qty, name){
-  if(!itemId) return;
+function pushInvDone(itemId, qty, name, opts){
+  opts=opts||{};
+  if(!itemId && !opts.create) return;
   try{
     let q; try{ q=JSON.parse(localStorage.getItem("inv_done_callbacks")||"[]"); }catch(e){ q=[]; }
     if(!Array.isArray(q)) q=[];
-    q.push({ item_id:itemId, qty_added:Math.max(1,Number(qty)||1), done_date:ymd(new Date()), item_name:(name||"") });
+    q.push({ item_id:itemId||"", qty_added:Math.max(1,Number(qty)||1), done_date:ymd(new Date()), item_name:(name||""), create:!!opts.create, cat:(opts.cat||"") });
     localStorage.setItem("inv_done_callbacks", JSON.stringify(q));
   }catch(e){}
 }
@@ -901,6 +902,18 @@ function invAllItems(){
   let items; try{ items=JSON.parse(localStorage.getItem("inv_v7")||localStorage.getItem("inv_v6")||"[]"); }catch(e){ items=[]; }
   if(!Array.isArray(items)) items=[];
   return items.filter(it=>it&&it.name&&!it.is3c);
+}
+// 讀庫存「分類維護字典」的商品名（含還沒入庫的），排除已入庫同名
+function invDict(){
+  let cats; try{ cats=JSON.parse(localStorage.getItem("inv_cats")||"[]"); }catch(e){ cats=[]; }
+  if(!Array.isArray(cats)) cats=[];
+  const real=new Set(invAllItems().map(it=>String(it.name||"").replace(/\s/g,"")));
+  const seen=new Set(), out=[];
+  cats.forEach(c=>{ (c.items||[]).forEach(nm=>{
+    const k=String(nm||"").replace(/\s/g,""); if(!k||real.has(k)||seen.has(k)) return;
+    seen.add(k); out.push({name:nm, cat:c.id||""});
+  }); });
+  return out;
 }
 function setIconPicker(inputId, val){
   const pick=$(inputId+"_pick"), inp=$(inputId);
@@ -1589,8 +1602,9 @@ function toggleDoneWhole(id){
     // 完成 → 記下完成日（今天），排定日保持不變
     patch.kind="done"; patch.status="done";
     patch.doneDate=ymd(new Date());
-    if(r.category==="shopping" && r.invId && r.needStock!==false){
-      pushInvDone(r.invId, r.qty, r.title);   // 回傳庫存（月曆/總覽完成）
+    if(r.category==="shopping" && r.needStock!==false){
+      if(r.invId) pushInvDone(r.invId, r.qty, r.title);                          // 已入庫→加數量
+      else if(r.invNew) pushInvDone("", r.qty, r.title, {create:true, cat:r.invCat});  // 未入庫→新建入庫
     }
     /* 〔設計備註：回傳成功訊息〕
        目前回傳正常運作，故「完成時」不跳任何訊息（保持安靜）。
@@ -1672,7 +1686,10 @@ function toggleShopDone(id){
   if(!requireAuth()) return;
   const r=state.records[id]; if(!r) return;
   const patch={ kind:"done", status:"done", doneDate:ymd(new Date()) };
-  if(r.invId && r.needStock!==false){ pushInvDone(r.invId, r.qty, r.title); }   // 回傳庫存（待購勾完成）
+  if(r.needStock!==false){
+    if(r.invId) pushInvDone(r.invId, r.qty, r.title);                            // 已入庫→加數量
+    else if(r.invNew) pushInvDone("", r.qty, r.title, {create:true, cat:r.invCat});    // 未入庫→新建入庫
+  }
   let next=null;
   // 重複採購（onDone）→ 以購買日往後推，生成下一筆
   if(hasRepeat(r) && (r.repeat.mode||"onDone")==="onDone" && !r.spawned){
@@ -1773,6 +1790,8 @@ function openRecordForm(rec, presets, asCopy){
         '<input id="rec_prodsearch" type="text" autocomplete="off" placeholder="🔍 搜尋商品…" value="'+esc(r.title||"")+'">'+
         '<div id="rec_prodresults" class="prodresults" style="display:none"></div></div>'+
       '<input type="hidden" id="rec_invId" value="'+esc(r.invId||"")+'">'+
+      '<input type="hidden" id="rec_invNew" value="'+(r.invNew?"1":"")+'">'+
+      '<input type="hidden" id="rec_invCat" value="'+esc(r.invCat||"")+'">'+
       '<div class="field"><label>大分類 <span id="rec_subcatlock"></span></label>'+
         '<select id="rec_subcategory">'+SUBCAT_ORDER.map(c=>'<option value="'+c+'"'+(((r.subcategory||"food")===c)?" selected":"")+'>'+SUBCAT_ICON[c]+' '+SUBCAT_LABEL[c]+'</option>').join("")+'</select></div>'+
       '<div class="toggle-row" id="rec_needstockbox"><span>📦 需入庫管理（完成→更新庫存）</span><label class="switch"><input type="checkbox" id="rec_needstock"'+((r.needStock!==undefined?r.needStock:!!r.invId)?" checked":"")+(r.fromInv?" disabled":"")+'><span class="slider"></span></label></div>'+
@@ -1838,14 +1857,15 @@ function openRecordForm(rec, presets, asCopy){
   });
   function _lockSubcat(){
     const sc=$("rec_subcategory"); if(!sc) return;
-    const locked=!!($("rec_invId") && $("rec_invId").value);
-    sc.disabled = locked;   // 選到庫存品項→鎖住大分類
+    const locked=!!($("rec_invId") && $("rec_invId").value) || !!($("rec_invNew") && $("rec_invNew").value==="1");
+    sc.disabled = locked;   // 選到庫存品項/未入庫字典→鎖住大分類
     const hint=$("rec_subcatlock");
     if(hint) hint.textContent = locked ? "🔒 已依商品自動分類" : "（手動商品才需選）";
   }
   function _syncNeedStock(){
     const ns=$("rec_needstock");
-    if(ns && !ns.disabled) ns.checked = !!($("rec_invId") && $("rec_invId").value);
+    const linked=!!($("rec_invId") && $("rec_invId").value) || !!($("rec_invNew") && $("rec_invNew").value==="1");
+    if(ns && !ns.disabled) ns.checked = linked;
     _lockSubcat();
   }
   const _ps=$("rec_prodsearch"), _pr=$("rec_prodresults");
@@ -1856,19 +1876,31 @@ function openRecordForm(rec, presets, asCopy){
     const ql=q.toLowerCase();
     const all=invAllItems();
     const hits=all.filter(it=>String(it.name||"").toLowerCase().indexOf(ql)>=0).slice(0,8);
+    const dict=invDict().filter(d=>String(d.name||"").toLowerCase().indexOf(ql)>=0).slice(0,6);
     let html=hits.map(it=>'<div class="prod-row" data-id="'+esc(String(it.id))+'" data-name="'+esc(it.name)+'" data-cat="'+esc(it.cat||"")+'">'+esc(it.name)+(it.unit?'<span class="prod-u">'+esc(it.unit)+'</span>':'')+'</div>').join("");
+    html+=dict.map(d=>'<div class="prod-row" data-name="'+esc(d.name)+'" data-cat="'+esc(d.cat)+'" data-new="1">'+esc(d.name)+'<span class="prod-u" style="color:#c2410c">未入庫</span></div>').join("");
     html+='<div class="prod-row prod-manual" data-manual="1">＋ 手動新增「'+esc(q)+'」（庫存沒有，不回傳）</div>';
-    html+='<div style="font-size:11px;color:var(--faint);padding:6px 8px">🔧 行事曆目前讀到庫存 '+all.length+' 項</div>';
     _pr.innerHTML=html; _pr.style.display="";
     _pr.querySelectorAll(".prod-row").forEach(row=>row.addEventListener("click", function(){
       if(this.getAttribute("data-manual")){
         if($("rec_invId")) $("rec_invId").value="";
+        if($("rec_invNew")) $("rec_invNew").value="";
+        if($("rec_invCat")) $("rec_invCat").value="";
         $("rec_title").value=q; _ps.value=q;
+      } else if(this.getAttribute("data-new")){
+        const nm=this.getAttribute("data-name")||"", c=this.getAttribute("data-cat")||"";
+        $("rec_title").value=nm; _ps.value=nm;
+        if($("rec_invId")) $("rec_invId").value="";
+        if($("rec_invNew")) $("rec_invNew").value="1";
+        if($("rec_invCat")) $("rec_invCat").value=c;
+        const sc=$("rec_subcategory"); if(sc) sc.value=invSubcatOf(c);
       } else {
         const nm=this.getAttribute("data-name")||"", id=this.getAttribute("data-id")||"", c=this.getAttribute("data-cat")||"";
         $("rec_title").value=nm; _ps.value=nm;
         if($("rec_invId")) $("rec_invId").value=id;
-        const sc=$("rec_subcategory"); if(sc) sc.value=invSubcatOf(c);   // 自動帶大分類
+        if($("rec_invNew")) $("rec_invNew").value="";
+        if($("rec_invCat")) $("rec_invCat").value="";
+        const sc=$("rec_subcategory"); if(sc) sc.value=invSubcatOf(c);
       }
       _syncNeedStock();
       _pr.style.display="none"; _pr.innerHTML="";
@@ -1878,6 +1910,8 @@ function openRecordForm(rec, presets, asCopy){
     _ps.addEventListener("input", function(){
       $("rec_title").value=this.value;          // 打什麼就是品名
       if($("rec_invId")) $("rec_invId").value="";  // 重打 → 先解除連結，點到結果才重連
+      if($("rec_invNew")) $("rec_invNew").value="";
+      if($("rec_invCat")) $("rec_invCat").value="";
       _syncNeedStock();
       _renderProdResults(this.value);
     });
@@ -1938,12 +1972,14 @@ function saveRecord(id, prev){
     data.subcategory=$("rec_subcategory").value||"other";
     data.qty=Math.max(1, Number($("rec_qty").value)||1);
     data.invId = ($("rec_invId") && $("rec_invId").value) ? $("rec_invId").value : ((prev&&prev.invId)||null);
+    data.invNew = ($("rec_invNew") && $("rec_invNew").value==="1") ? true : null;
+    data.invCat = ($("rec_invCat") && $("rec_invCat").value) ? $("rec_invCat").value : null;
     data.needStock = $("rec_needstock") ? !!$("rec_needstock").checked : !!(prev&&prev.needStock);
     data.fromInv = (prev&&prev.fromInv) ? true : null;
     const pv=$("rec_price").value;
     data.amount = (pv!=="" && !isNaN(Number(pv))) ? Number(pv) : null;
   } else {
-    data.subcategory=null; data.qty=null; data.invId=null; data.needStock=null; data.fromInv=null;
+    data.subcategory=null; data.qty=null; data.invId=null; data.needStock=null; data.fromInv=null; data.invNew=null; data.invCat=null;
     const av=$("rec_amount").value;
     data.amount = (av!=="" && !isNaN(Number(av))) ? Number(av) : null;
   }
