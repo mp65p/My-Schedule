@@ -150,6 +150,7 @@
   .pill.low{background:#EEF1F5;color:#64748B}
   .card .acts{display:flex;gap:6px;flex:none}
   .icon-btn{width:32px;height:32px;border-radius:9px;font-size:15px;color:var(--muted);background:var(--bg)}
+  .icon-btn[disabled]{opacity:.3;pointer-events:none}
   .icon-btn:active{background:var(--line)}
 
   /* shopping item check */
@@ -271,19 +272,40 @@
   .iconchip.on{background:#EAF2FF;border-color:var(--primary);color:var(--primary);font-weight:600}
 
   /* 年度目標 */
-  .goal-card .goal-prog{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .goal-card .goal-prog{display:flex;align-items:center;gap:8px;margin-top:12px}
+  .goal-card .name{white-space:normal;overflow:visible;text-overflow:clip}
+  .goal-card .acts{display:flex;flex-wrap:wrap;gap:6px;flex:none;width:100%;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+  .goal-card .acts .icon-btn{width:auto;min-width:34px;height:34px;padding:0 11px;white-space:nowrap;font-size:13px;display:inline-flex;align-items:center;justify-content:center}
+  .goal-card .goal-segs .seg{cursor:pointer}
+  .goal-members{margin-top:10px;display:flex;flex-direction:column;gap:12px}
+  .gmem{padding:8px 0;border-top:1px dashed var(--line)}
+  .gmem:first-child{border-top:none}
+  .gmem-hd{font-size:14px;color:var(--ink)}
+  .mem-done{font-size:12px;color:#2CA02C;font-weight:700;background:#E8F5E9;padding:1px 8px;border-radius:999px}
+  .gmem-rec{display:flex;gap:6px;align-items:center;margin-top:10px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+  .gmem-sel,.gmem-input{padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:13px}
+  .gmem-input{width:90px}
+  .mem-edit{display:flex;gap:6px;margin-bottom:6px}
+  .mem-edit input{padding:8px;border:1px solid var(--line);border-radius:8px;font-size:13px;min-width:0}
   .goal-bar{flex:1;height:9px;border-radius:6px;background:var(--bg);overflow:hidden}
   .goal-fill{height:100%;border-radius:6px;transition:width .3s}
   .goal-pct{font-size:12px;font-weight:700;color:var(--muted);min-width:34px;text-align:right}
-  .goal-sub{font-size:12px;color:var(--muted);margin-top:4px}
+  .goal-sub{font-size:12px;color:var(--muted);margin-top:10px}
   .goal-status{margin-top:8px;font-size:13px;font-weight:600;color:var(--muted)}
   .goal-status.is-done{color:#2CA02C}
-  .goal-segs{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+  .goal-segs{margin-top:12px;display:flex;flex-wrap:wrap;gap:8px}
   .goal-segs .seg{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--bg);color:var(--muted);border:1px solid var(--line)}
   .goal-segs .seg-done{background:#E8F5E9;color:#2CA02C;border-color:#A5D6A7;font-weight:600}
-  .goal-ms{margin-top:8px;display:flex;flex-direction:column;gap:4px}
-  .ms-row{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink)}
-  .ms-row input{width:18px;height:18px;flex:none}
+  .goal-segs .seg-goal{font-weight:700;border-color:var(--accent,#2563eb);color:var(--accent,#2563eb)}
+  .goal-ms{margin-top:12px;display:flex;flex-direction:column;gap:9px}
+  .ms-divider{font-size:11px;color:var(--faint);margin:12px 0 6px;text-align:center}
+  .ms-row{display:flex;align-items:flex-start;gap:8px;font-size:14px;color:var(--ink);padding:3px 0;line-height:1.5}
+  .ms-row input{width:18px;height:18px;flex:none;margin-top:2px}
+  .ms-body{flex:1;min-width:0;display:flex;flex-direction:column}
+  .ms-name{word-break:break-word}
+  .ms-date,.msd{white-space:nowrap;font-size:12px;margin-top:1px}
+  .msd-red{color:#dc2626;font-weight:700}
+  .msd-faint{color:var(--faint)}
   .ms-done{text-decoration:line-through;color:var(--faint)}
   .ms-edit{display:flex;align-items:center;gap:6px;margin-bottom:6px}
   .ms-edit input{flex:1}
@@ -518,7 +540,7 @@ let formAssignees = new Set();   // 編輯記事時暫存已選執行人
 const CAT_ORDER = ["life","work","health","travel","study","shopping","finance","activity","side","other"];
 const CAT_LABEL = { life:"生活", work:"工作", health:"健康", travel:"旅遊", study:"學習", shopping:"購物", finance:"財務", activity:"活動", side:"副業", other:"其他" };
 const CAT_COLOR = { life:"#2CA02C", work:"#1F77B4", health:"#D62728", travel:"#17BECF", study:"#9467BD", shopping:"#E377C2", finance:"#BCBD22", activity:"#FF7F0E", side:"#8C564B", other:"#7F7F7F" };
-const APP_VER = "v58";
+const APP_VER = "v69";
 const SUBCAT_ORDER = ["food","daily","clothing","travelgear","electronics","other"];
 const SUBCAT_LABEL = { food:"食材", daily:"生活用品", clothing:"衣物", travelgear:"旅遊備品", electronics:"3C家電", other:"其他" };
 // 庫存 16 小類 → 行事曆 6 大類（衣物／旅遊備品庫存沒有，只能手動）
@@ -577,6 +599,7 @@ function countdownText(dateStr){
 function $(id){ return document.getElementById(id); }
 function ymd(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 const _WD=["日","一","二","三","四","五","六"];
+function fmtNum(n){ const x=Number(n); return isNaN(x)?String(n):x.toLocaleString("en-US"); }
 function _wdOf(ds){ if(!ds) return null; const p=String(ds).split("-"); return new Date(Number(p[0]),Number(p[1])-1,Number(p[2])).getDay(); }
 // 「6/25（三）」週末紅字（回傳 HTML，內容皆系統產生、安全）
 function mdWk(ds){
@@ -584,6 +607,26 @@ function mdWk(ds){
   const p=String(ds).split("-"); const mo=Number(p[1]), da=Number(p[2]); const g=_wdOf(ds);
   const txt=mo+"/"+da+"（"+_WD[g]+"）";
   return (g===0||g===6) ? '<span style="color:#dc2626">'+txt+'</span>' : txt;
+}
+// 距今天幾天（負=逾期）
+function _daysFromToday(ds){
+  if(!ds) return null; const p=String(ds).split("-");
+  const d=new Date(Number(p[0]),Number(p[1])-1,Number(p[2])); d.setHours(0,0,0,0);
+  const t=new Date(); t.setHours(0,0,0,0);
+  return Math.round((d-t)/86400000);
+}
+// 里程碑日期標籤：📅6/28（六）剩4天 / 逾2天（逾期/今天/3天內→紅）；done→灰、只顯示日期
+function _msDate(ds, done){
+  if(!ds) return "";
+  const p=String(ds).split("-"); const md=Number(p[1])+"/"+Number(p[2]); const wd=_WD[_wdOf(ds)];
+  const base="📅"+md+"（"+wd+"）";
+  if(done) return '<span class="msd msd-faint">'+base+'</span>';
+  const dd=_daysFromToday(ds); let tail="", red=false;
+  if(dd<0){ tail="逾"+(-dd)+"天"; red=true; }
+  else if(dd===0){ tail="今天"; red=true; }
+  else if(dd<=3){ tail="剩"+dd+"天"; red=true; }
+  else { tail="剩"+dd+"天"; }
+  return '<span class="msd'+(red?' msd-red':' msd-faint')+'">'+base+tail+'</span>';
 }
 function esc(s){ return (s==null?"":String(s)).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
 function toast(msg, ms){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"), ms||1800); }
@@ -2109,17 +2152,23 @@ function goalSegments(g){
   const step=Math.abs(Number(g.step)||0); if(step<=0) return [];
   const dir=g.dir||"up";
   const tgt=Number(g.target)||0, cur=Number(g.current)||0;
-  const st = (dir==="down") ? ((g.start!=null)?Number(g.start):cur) : 0;   // 遞增一律從0起算
+  let st;
+  if(dir==="down"){
+    const base=(g.start!=null)?Number(g.start):cur;
+    st=Math.max(base, cur, tgt+step);   // 穩定錨點：達標後關卡不塌縮、保留
+  } else {
+    st=0;   // 遞增一律從0起算
+  }
   if(tgt===st) return [];
   const up = tgt>st;
   const n=Math.floor(Math.abs(tgt-st)/step);
   const segs=[];
   for(let i=1;i<=n;i++){
     const v = up ? st+step*i : st-step*i;
-    if(up ? v>=tgt : v<=tgt) break;
-    segs.push({ val:v, done: up? cur>=v : cur<=v });
+    if(up ? v>=tgt : v<=tgt) break;   // 等距關卡，不含目標
+    segs.push({ val:v, done: up? cur>=v : cur<=v, target:false });
   }
-  segs.push({ val:tgt, done: up? cur>=tgt : cur<=tgt });
+  segs.push({ val:tgt, done: up? cur>=tgt : cur<=tgt, target:true });   // 目標單獨標示
   return segs;
 }
 function renderGoals(){
@@ -2138,11 +2187,25 @@ function renderGoals(){
     yf=sel.value;
   }
   if(yf && yf!=="all") arr=arr.filter(g=>String(g.year||yr)===yf);
-  arr.sort((a,b)=>((b.year||0)-(a.year||0)) || ((a.createdAt||0)-(b.createdAt||0)));
+  arr.sort((a,b)=>((b.year||0)-(a.year||0)) || (_ordOf(a)-_ordOf(b)));
   if(arr.length===0){ wrap.innerHTML='<div class="empty-state">'+((yf&&yf!=="all")?(yf+' 年還沒有目標。'):'還沒有目標，點「＋ 新增目標」開始。')+'</div>'; return; }
-  wrap.innerHTML=""; arr.forEach(g=>wrap.appendChild(goalCard(g)));
+  wrap.innerHTML=""; arr.forEach((g,i)=>wrap.appendChild(goalCard(g,i,arr.length)));
 }
-function goalCard(g){
+function _ordOf(g){ return g.order!=null?Number(g.order):(g.createdAt||0); }
+function moveGoal(id, delta){
+  if(!requireAuth()) return;
+  const g=state.goals[id]; if(!g) return;
+  const yr=new Date().getFullYear(), y=String(g.year||yr);
+  let list=Object.entries(state.goals).map(([k,v])=>Object.assign({id:k},v)).filter(x=>String(x.year||yr)===y);
+  list.sort((a,b)=>_ordOf(a)-_ordOf(b));
+  const i=list.findIndex(x=>x.id===id), j=i+delta;
+  if(i<0||j<0||j>=list.length) return;
+  const tmp=list[i]; list[i]=list[j]; list[j]=tmp;
+  list.forEach((x,k)=>{ if(state.goals[x.id]) state.goals[x.id].order=k; });   // 重新編號
+  list.forEach(x=>saveGoalPatch(x.id,{order:state.goals[x.id].order}));
+  renderGoals();
+}
+function goalCard(g, idx, total){
   const card=document.createElement("div");
   card.className="card goal-card";
   const p=goalProgress(g); const col=catColor(g.category);
@@ -2157,30 +2220,85 @@ function goalCard(g){
     const days=freqWeekDays(g);
     h+='<div class="goal-prog"><div class="goal-bar"><div class="goal-fill" style="width:'+wpct+'%;background:'+col+'"></div></div><div class="goal-pct">本週 '+wc+'/'+pw+'</div></div>';
     h+='<div class="goal-sub">本月共 '+mc+' '+esc(g.unit||"次")+(wc>=pw?'　本週達標 🎉':'')+(days.length?'　（'+days.join("、")+'）':'')+'</div>';
+  } else if(g.type==="number" && Array.isArray(g.members) && g.members.length){
+    const dir=g.dir||"up";
+    h+='<div class="goal-members">';
+    g.members.forEach((m,mi)=>{
+      const cur=Number(m.current||0), tgt=Number(m.target||0);
+      const _mstart=(m.start!=null)?Number(m.start):Math.max(cur,tgt);
+      const segs=goalSegments({type:"number",dir:dir,step:g.step,target:tgt,current:cur,start:_mstart});
+      const complete = dir==="down"? cur<=tgt : cur>=tgt;
+      let info;
+      if(complete){ info='🎉 已達標'; }
+      else { const nx=segs.find(s=>!s.done&&!s.target);
+        if(nx){ const diff=dir==="down"?(cur-nx.val):(nx.val-cur); info='🎯下一關 '+fmtNum(nx.val)+'　還差 '+fmtNum(Math.max(0,diff)); }
+        else { const d=dir==="down"?(cur-tgt):(tgt-cur); info='還差 '+fmtNum(Math.max(0,d))+' 達標'; }
+      }
+      h+='<div class="gmem"><div class="gmem-hd">👤 '+esc(m.name)+'　<b>'+fmtNum(cur)+' → '+fmtNum(tgt)+'</b>'+(g.unit?' '+esc(g.unit):'')+(complete?' <span class="mem-done">已達標</span>':'')+'</div>';
+      h+='<div class="goal-sub">'+info+'</div>';
+      if(segs.length){ h+='<div class="goal-segs">'+segs.map(s=> s.target
+        ? '<span class="seg seg-goal'+(s.done?' seg-done':'')+'" data-mseg="'+mi+'" data-segval="'+s.val+'">🎯目標 '+fmtNum(s.val)+(s.done?' ✓':'')+'</span>'
+        : '<span class="seg'+(s.done?' seg-done':'')+'" data-mseg="'+mi+'" data-segval="'+s.val+'">'+(s.done?'🏆':'')+fmtNum(s.val)+(s.done?' ✓':'')+'</span>'
+      ).join("")+'</div>'; }
+      h+='</div>';
+    });
+    h+='</div>';
+    h+='<div class="gmem-rec">記錄：<select id="memsel_'+g.id+'" class="gmem-sel">'+g.members.map((m,mi)=>'<option value="'+mi+'">'+esc(m.name)+'</option>').join("")+'</select><input type="number" id="meminp_'+g.id+'" class="gmem-input" placeholder="數值"><button class="icon-btn gmem-apply" data-memapply>套用</button></div>';
   } else {
-    h+='<div class="goal-prog"><div class="goal-bar"><div class="goal-fill" style="width:'+p.pct+'%;background:'+col+'"></div></div><div class="goal-pct">'+p.pct+'%</div></div>';
     if(g.type==="milestone"){
-      h+='<div class="goal-sub">完成 '+p.done+' / '+p.total+' 項</div><div class="goal-ms">';
-      const msList=(g.milestones||[]).map((m,i)=>({m,i}));
-      msList.sort((a,b)=>{ const da=a.m.date||"9999-99", db_=b.m.date||"9999-99"; return da<db_?-1:da>db_?1:a.i-b.i; });
-      msList.forEach(({m,i})=>{ h+='<label class="ms-row"><input type="checkbox" data-ms="'+i+'"'+(m.done?" checked":"")+'><span'+(m.done?' class="ms-done"':'')+'>'+esc(m.text)+(m.date?' <span style="color:var(--faint);font-size:12px">📅 '+esc(m.date.slice(5))+'</span>':'')+'</span></label>'; });
+      h+='<div class="goal-sub">完成 '+p.done+' / '+p.total+' 項</div>';
+      const all=(g.milestones||[]).map((m,i)=>({m,i}));
+      const byDate=(a,b)=>{ const da=a.m.date||"9999-99-99", db=b.m.date||"9999-99-99"; return da<db?-1:da>db?1:a.i-b.i; };
+      const undone=all.filter(x=>!x.m.done).sort(byDate);
+      const done=all.filter(x=>x.m.done).sort(byDate);
+      const row=x=>'<label class="ms-row"><input type="checkbox" data-ms="'+x.i+'"'+(x.m.done?" checked":"")+'><span class="ms-body"><span class="ms-name'+(x.m.done?' ms-done':'')+'">'+esc(x.m.text)+'</span>'+(x.m.date?_msDate(x.m.date,x.m.done):'')+'</span></label>';
+      h+='<div class="goal-ms">';
+      h+=undone.map(row).join("");
+      if(done.length){ h+='<div class="ms-divider">─ 已完成 '+done.length+' ─</div>'+done.map(row).join(""); }
       h+='</div>';
     } else {
-      h+='<div class="goal-sub">'+esc(p.done)+' / '+esc(p.total)+' '+esc(g.unit||"")+(p.complete?'　已完成 🎉':'')+'</div>';
+      const dir=g.dir||"up", cur=Number(g.current||0), tgt=Number(g.target||0);
       const segs=goalSegments(g);
-      if(segs.length){ h+='<div class="goal-segs">'+segs.map(s=>'<span class="seg'+(s.done?' seg-done':'')+'">'+esc(s.val)+(s.done?' ✓':'')+'</span>').join("")+'</div>'; }
+      let info="";
+      if(p.complete){ info='🎉 已達成目標！'; }
+      else {
+        const nx=segs.find(s=>!s.done && !s.target);
+        if(nx){ const diff=dir==="down"?(cur-nx.val):(nx.val-cur); info='🎯 下一關 '+fmtNum(nx.val)+(g.unit||'')+'　還差 '+fmtNum(Math.max(0,diff))+(g.unit||''); }
+        else { const diff=dir==="down"?(cur-tgt):(tgt-cur); info='還差 '+fmtNum(Math.max(0,diff))+(g.unit||'')+' 達標'; }
+      }
+      h+='<div class="goal-sub">'+info+'</div>';
+      if(segs.length){ h+='<div class="goal-segs">'+segs.map(s=>{
+        if(s.target) return '<span class="seg seg-goal'+(s.done?' seg-done':'')+'" data-segval="'+s.val+'">🎯目標 '+fmtNum(s.val)+(s.done?' ✓':'')+'</span>';
+        return '<span class="seg'+(s.done?' seg-done':'')+'" data-segval="'+s.val+'">'+(s.done?'🏆':'')+fmtNum(s.val)+(s.done?' ✓':'')+'</span>';
+      }).join("")+'</div>'; }
     }
   }
-  h+='</div><div class="acts">';
+  h+='<div class="acts">';
+  h+='<button class="icon-btn" data-up'+(idx<=0?' disabled':'')+' title="上移">▲</button><button class="icon-btn" data-down'+(idx>=total-1?' disabled':'')+' title="下移">▼</button>';
   if(g.type==="number") h+='<button class="icon-btn" data-prog>＋進度</button><button class="icon-btn" data-fin>✓ 標記完成</button>';
   if(g.type==="freq") h+='<button class="icon-btn" data-bump>＋1 今天完成</button><button class="icon-btn" data-undo>↩︎ 退回</button>';
   if(g.type==="simple") h+='<button class="icon-btn" data-done>'+(g.done?"↩︎ 取消完成":"✓ 標記完成")+'</button>';
-  h+='<button class="icon-btn" data-next title="複製到明年">📋 明年繼續</button>';
-  h+='<button class="icon-btn" data-edit>✏️</button><button class="icon-btn" data-del>🗑</button></div>';
+  if(g.type==="number") h+='<button class="icon-btn" data-extend title="提高目標、進度保留">➕ 延長</button>';
+  if(g.type==="milestone") h+='<button class="icon-btn" data-extend title="新增項目、已完成保留">➕ 加項目</button>';
+  h+='<button class="icon-btn" data-next title="複製此目標">📋 複製</button>';
+  h+='<button class="icon-btn" data-edit>✏️</button><button class="icon-btn" data-del>🗑</button></div></div>';
   card.innerHTML=h;
   card.querySelector("[data-edit]").addEventListener("click", ()=>openGoalForm(g));
   card.querySelector("[data-del]").addEventListener("click", ()=>deleteGoal(g.id, g.title));
   const nb=card.querySelector("[data-next]"); if(nb) nb.addEventListener("click", ()=>copyGoalToNextYear(g));
+  const upb=card.querySelector("[data-up]"); if(upb&&!upb.disabled) upb.addEventListener("click", ()=>moveGoal(g.id,-1));
+  const dnb=card.querySelector("[data-down]"); if(dnb&&!dnb.disabled) dnb.addEventListener("click", ()=>moveGoal(g.id,1));
+  const xb=card.querySelector("[data-extend]"); if(xb) xb.addEventListener("click", ()=>extendGoal(g.id));
+  card.querySelectorAll("[data-segval]").forEach(el=>{
+    if(el.hasAttribute("data-mseg")) el.addEventListener("click", ()=>setMemberCurrent(g.id, Number(el.getAttribute("data-mseg")), Number(el.getAttribute("data-segval")), true));
+    else el.addEventListener("click", ()=>setGoalSegment(g.id, Number(el.getAttribute("data-segval"))));
+  });
+  const ma=card.querySelector("[data-memapply]");
+  if(ma) ma.addEventListener("click", ()=>{
+    const sel=card.querySelector("#memsel_"+g.id), inp=card.querySelector("#meminp_"+g.id);
+    if(!sel||!inp||inp.value==="") return;
+    setMemberCurrent(g.id, Number(sel.value), Number(inp.value), true);
+  });
   const pb=card.querySelector("[data-prog]"); if(pb) pb.addEventListener("click", ()=>updateGoalProgress(g));
   const fb=card.querySelector("[data-fin]"); if(fb) fb.addEventListener("click", ()=>markGoalDone(g.id));
   const bp=card.querySelector("[data-bump]"); if(bp) bp.addEventListener("click", ()=>bumpFreq(g.id));
@@ -2193,6 +2311,47 @@ function markGoalDone(id){
   const g=state.goals[id]; if(!g) return;
   const tgt=Number(g.target)||0;
   saveGoalPatch(id, { current: tgt });   // 目前值＝目標值 → 100%、區間全達成
+}
+function setGoalSegment(id, val){
+  if(!requireAuth()) return;
+  const g=state.goals[id]; if(!g||g.type!=="number") return;
+  const dir=g.dir||"up", cur=Number(g.current||0);
+  const backward = (dir==="down") ? (val>cur) : (val<cur);
+  if(backward && !confirm("確定將進度設為 "+fmtNum(val)+(g.unit||"")+"？")) return;
+  saveGoalPatch(id, { current: val });
+  toast("進度已更新："+fmtNum(val)+(g.unit||""));
+}
+function setMemberCurrent(id, mi, val, confirmBackward){
+  if(!requireAuth()) return;
+  const g=state.goals[id]; if(!g||!Array.isArray(g.members)||!g.members[mi]) return;
+  const dir=g.dir||"up", cur=Number(g.members[mi].current||0);
+  const backward = (dir==="down") ? (val>cur) : (val<cur);
+  if(confirmBackward && backward && !confirm("確定將「"+g.members[mi].name+"」設為 "+fmtNum(val)+(g.unit||"")+"？")) return;
+  const members=g.members.map((m,i)=> i===mi ? Object.assign({},m,{current:val}) : m);
+  saveGoalPatch(id, { members });
+  toast(g.members[mi].name+"："+fmtNum(val)+(g.unit||""));
+}
+function extendGoal(id){
+  if(!requireAuth()) return;
+  const g=state.goals[id]; if(!g) return;
+  if(g.type==="number"){
+    const cur=Number(g.target)||0;
+    const v=prompt("延長目標：輸入新的目標值"+(g.unit?("（"+g.unit+"）"):""), cur);
+    if(v==null) return;
+    const nt=Number(v);
+    if(!(nt>0)){ toast("請輸入有效數字"); return; }
+    if(nt<=cur){ toast("新目標需大於目前 "+cur); return; }
+    saveGoalPatch(id, { target: nt });   // 進度保留，闖關自動補關卡
+    toast("目標已延長至 "+nt+(g.unit||""));
+  } else if(g.type==="milestone"){
+    const t=prompt("新增一個項目（要做的事）","");
+    if(t==null) return;
+    const txt=t.trim(); if(!txt) return;
+    const ms=(g.milestones||[]).slice();
+    ms.push({text:txt, done:false, date:null});   // 已完成保留，新項目加最後
+    saveGoalPatch(id, { milestones: ms });
+    toast("已新增項目："+txt);
+  }
 }
 function toggleGoalDone(id){
   const g=state.goals[id]; if(!g) return;
@@ -2217,13 +2376,14 @@ function saveGoalPatch(id, patch){
 }
 function copyGoalToNextYear(g){
   if(!requireAuth()) return;
-  const ny=(Number(g.year)||new Date().getFullYear())+1;
   const copy=Object.assign({}, g); delete copy.id;
-  copy.year=ny; copy.createdAt=Date.now(); copy.done=false;
+  copy.year=(Number(g.year)||new Date().getFullYear());   // 年份維持，之後可在編輯改
+  copy.title=(g.title||"目標")+"（複本）";
+  copy.createdAt=Date.now(); copy.done=false;
   if(copy.type==="milestone" && Array.isArray(copy.milestones)) copy.milestones=copy.milestones.map(m=>({text:m.text,done:false,date:m.date||null}));
   if(copy.type==="number") copy.current=(copy.start!=null?copy.start:0);
-  if(copy.type==="freq") copy.freqLog=[];   // 頻率型：新年度從零開始
-  const after=function(){ const sel=$("goalYearFilter"); if(sel){ sel.value=String(ny); } renderGoals(); toast("已複製到 "+ny+" 年"); };
+  if(copy.type==="freq") copy.freqLog=[];
+  const after=function(){ renderGoals(); toast("已複製目標"); };
   if(LOCAL_MODE){ const key=genId(); state.goals[key]=copy; lsSaveGoals(); after(); return; }
   const key=db.ref("goals").push().key;
   db.ref("goals/"+key).update(copy).then(after).catch(e=>{ console.error(e); toast("複製失敗"); });
@@ -2236,11 +2396,13 @@ function deleteGoal(id, title){
 }
 
 let goalMilestones=[];   // 編輯時暫存里程碑
+let goalMembers=[];      // 編輯時暫存多人成員
 function openGoalForm(goal){
   const isEdit=!!goal; const g=goal||{};
   const type=g.type||"number"; const cat=g.category||"life"; const yr=g.year||new Date().getFullYear();
   const dir=g.dir||((g.target!=null&&g.start!=null&&Number(g.target)<Number(g.start))?"down":"up");
   goalMilestones=(g.milestones||[]).map(m=>({text:m.text,done:!!m.done,date:m.date||""}));
+  goalMembers=(g.members&&g.members.length)?g.members.map(m=>({name:m.name||"",current:(m.current!=null?m.current:0),target:(m.target!=null?m.target:0)})):[{name:"我",current:0,target:0},{name:"老公",current:0,target:0}];
   const html=
     '<div class="field"><label>目標名稱</label><input id="g_title" autocomplete="off" value="'+esc(g.title||"")+'" placeholder="例如：存到 30 萬"></div>'+
     '<div class="two">'+
@@ -2261,11 +2423,21 @@ function openGoalForm(goal){
         '</select></div>'+
         '<div class="field"><label>間隔（選填）</label><input id="g_step" type="number" value="'+(g.step!=null?g.step:"")+'" placeholder="每階，如 50000"></div>'+
       '</div>'+
-      '<div class="two">'+
-        '<div class="field"><label>目標值</label><input id="g_target" type="number" value="'+(g.target!=null?g.target:"")+'" placeholder="300000"></div>'+
-        '<div class="field"><label>目前</label><input id="g_current" type="number" value="'+(g.current!=null?g.current:0)+'"></div>'+
+      '<div class="field"><label>對象</label><select id="g_personmode">'+
+        '<option value="single"'+(!(g.members&&g.members.length)?" selected":"")+'>單人</option>'+
+        '<option value="multi"'+((g.members&&g.members.length)?" selected":"")+'>多人（各自進度）</option>'+
+      '</select></div>'+
+      '<div id="g_singlevals"'+((g.members&&g.members.length)?' style="display:none"':'')+'>'+
+        '<div class="two">'+
+          '<div class="field"><label>目標值</label><input id="g_target" type="number" value="'+(g.target!=null?g.target:"")+'" placeholder="300000"></div>'+
+          '<div class="field"><label>目前</label><input id="g_current" type="number" value="'+(g.current!=null?g.current:0)+'"></div>'+
+        '</div>'+
       '</div>'+
-      '<div class="field"><label>單位（選填）</label><input id="g_unit" autocomplete="off" value="'+esc(g.unit||"")+'" placeholder="元 / 本 / 次"></div>'+
+      '<div id="g_membersbox"'+((g.members&&g.members.length)?'':' style="display:none"')+'>'+
+        '<div class="label-row"><label>成員（各自目前/目標）</label><span class="manage-link" id="g_addmem">＋ 加成員</span></div>'+
+        '<div id="g_memlist"></div>'+
+      '</div>'+
+      '<div class="field"><label>單位（選填）</label><input id="g_unit" autocomplete="off" value="'+esc(g.unit||"")+'" placeholder="元 / 本 / 次 / 公斤"></div>'+
     '</div>'+
     '<div id="g_msbox"'+(type==="milestone"?"":' style="display:none"')+'>'+
       '<div class="label-row"><label>里程碑清單</label><span class="manage-link" id="g_addms">＋ 加一項</span></div>'+
@@ -2288,6 +2460,14 @@ function openGoalForm(goal){
     $("g_msbox").style.display=this.value==="milestone"?"":"none";
     $("g_freqbox").style.display=this.value==="freq"?"":"none";
   });
+  if($("g_personmode")) $("g_personmode").addEventListener("change", function(){
+    const multi=this.value==="multi";
+    $("g_singlevals").style.display=multi?"none":"";
+    $("g_membersbox").style.display=multi?"":"none";
+    if(multi) renderMemEditor();
+  });
+  if($("g_addmem")) $("g_addmem").addEventListener("click", function(){ goalMembers.push({name:"",current:0,target:0}); renderMemEditor(); });
+  renderMemEditor();
   $("g_addms").addEventListener("click", function(){ goalMilestones.push({text:"",done:false,date:""}); renderMsEditor(); });
   renderMsEditor();
 }
@@ -2298,6 +2478,15 @@ function renderMsEditor(){
   box.querySelectorAll("[data-mi]").forEach(inp=>inp.addEventListener("input", function(){ goalMilestones[Number(this.getAttribute("data-mi"))].text=this.value; }));
   box.querySelectorAll("[data-mdate]").forEach(inp=>inp.addEventListener("change", function(){ goalMilestones[Number(this.getAttribute("data-mdate"))].date=this.value; }));
   box.querySelectorAll("[data-md]").forEach(b=>b.addEventListener("click", function(){ goalMilestones.splice(Number(this.getAttribute("data-md")),1); renderMsEditor(); }));
+}
+function renderMemEditor(){
+  const box=$("g_memlist"); if(!box) return;
+  box.innerHTML=goalMembers.map((m,i)=>'<div class="mem-edit"><input data-mn="'+i+'" autocomplete="off" value="'+esc(m.name)+'" placeholder="名字" style="flex:1.2"><input data-mc="'+i+'" type="number" value="'+(m.current!=null?m.current:0)+'" placeholder="目前" style="flex:1"><input data-mt="'+i+'" type="number" value="'+(m.target!=null?m.target:0)+'" placeholder="目標" style="flex:1"><button type="button" class="ms-del" data-mdel="'+i+'">✕</button></div>').join("")
+    || '<div style="font-size:12px;color:var(--faint);padding:4px 2px">點「＋ 加成員」新增</div>';
+  box.querySelectorAll("[data-mn]").forEach(inp=>inp.addEventListener("input",function(){ goalMembers[Number(this.getAttribute("data-mn"))].name=this.value; }));
+  box.querySelectorAll("[data-mc]").forEach(inp=>inp.addEventListener("input",function(){ goalMembers[Number(this.getAttribute("data-mc"))].current=this.value; }));
+  box.querySelectorAll("[data-mt]").forEach(inp=>inp.addEventListener("input",function(){ goalMembers[Number(this.getAttribute("data-mt"))].target=this.value; }));
+  box.querySelectorAll("[data-mdel]").forEach(b=>b.addEventListener("click",function(){ goalMembers.splice(Number(this.getAttribute("data-mdel")),1); renderMemEditor(); }));
 }
 function saveGoal(id, prev){
   if(!requireAuth()) return;
@@ -2319,6 +2508,21 @@ function saveGoal(id, prev){
     if(data.dir==="down") data.start=(id && prev && prev.start!=null && (prev.dir||"up")==="down") ? (Number(prev.start)||0) : data.current;
     else data.start=0;
     data.unit=$("g_unit").value.trim();
+    const _multi = $("g_personmode") && $("g_personmode").value==="multi";
+    if(_multi){
+      const _pm = (prev && Array.isArray(prev.members)) ? prev.members : [];
+      data.members = goalMembers.filter(m=>(m.name||"").trim()).map(m=>{
+        const nm=m.name.trim(), cur=Number(m.current)||0, tgt=Number(m.target)||0;
+        const old=_pm.find(x=>x.name===nm);
+        const start=(old && old.start!=null) ? Number(old.start) : cur;   // 起始：沿用或以目前為起點，不漂移
+        return {name:nm, current:cur, target:tgt, start:start};
+      });
+      if(!data.members.length){ toast("多人請至少一位成員"); return; }
+      data.target=Number(data.members[0].target)||0;   // 相容欄位
+      data.current=Number(data.members[0].current)||0;
+    } else {
+      data.members=null;
+    }
     data.milestones=null; data.progress=null; data.done=null;
   } else if(type==="milestone"){
     data.milestones=goalMilestones.filter(m=>(m.text||"").trim()).map(m=>({text:m.text.trim(),done:!!m.done,date:m.date||null}));
